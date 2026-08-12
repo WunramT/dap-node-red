@@ -1,0 +1,123 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "assignees": ["@J.Moehlenpage", "@T.Wunram"],
+  "reviewers": ["@J.Moehlenpage", "@T.Wunram"],
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
+  "semanticCommits": "enabled",
+  "commitMessagePrefix": "chore(deps):",
+  "separateMajorMinor": true,
+  "separateMinorPatch": false,
+  "rangeStrategy": "bump",
+  "automerge": false,
+  "platformAutomerge": false,
+  "ignoreTests": false,
+  "ignorePaths": ["**/package-lock.json"],
+  "packageRules": [
+    {
+      "description": "Group Python backend dependencies",
+      "matchManagers": ["pip_requirements"],
+      "matchPaths": ["backend/**"],
+      "groupName": "backend-dependencies",
+      "commitMessageTopic": "backend dependencies"
+    },
+    {
+      "description": "Group frontend npm dependencies (non-major)",
+      "matchManagers": ["npm"],
+      "matchPaths": ["frontend/**"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "frontend-dependencies",
+      "commitMessageTopic": "frontend dependencies"
+    },
+    {
+      "description": "Frontend major updates separately",
+      "matchManagers": ["npm"],
+      "matchPaths": ["frontend/**"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "frontend-major-dependencies",
+      "commitMessageTopic": "frontend major dependencies"
+    },
+    {
+      "description": "FastAPI updates",
+      "matchPackageNames": ["fastapi"],
+      "groupName": "fastapi",
+      "commitMessageTopic": "FastAPI"
+    },
+    {
+      "description": "SQLAlchemy updates",
+      "matchPackageNames": ["sqlalchemy", "alembic"],
+      "groupName": "database-orm",
+      "commitMessageTopic": "database ORM"
+    },
+    {
+      "description": "Vue ecosystem updates",
+      "matchPackageNames": ["vue", "vuetify", "@vue/**"],
+      "groupName": "vue-ecosystem",
+      "commitMessageTopic": "Vue ecosystem"
+    },
+    {
+      "description": "Docker images",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["major"],
+      "enabled": true,
+      "commitMessageTopic": "Docker images"
+    },
+    {
+      "description": "Pin Python Docker images to specific versions",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["python"],
+      "versioning": "docker"
+    },
+    {
+      "description": "Pin Node Docker images to specific versions",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["node"],
+      "versioning": "docker"
+    },
+    {
+      "description": "PostgreSQL updates - be cautious",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false,
+      "commitMessageTopic": "PostgreSQL"
+    },
+    {
+      "description": "Dev dependencies can be more aggressive",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": false,
+      "groupName": "dev-dependencies"
+    },
+    {
+      "description": "Test dependencies",
+      "matchPackageNames": [
+        "pytest",
+        "pytest-*",
+        "@vue/test-utils",
+        "vitest",
+        "@playwright/test"
+      ],
+      "groupName": "test-dependencies",
+      "commitMessageTopic": "test dependencies"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "commitMessageSuffix": "[security]"
+  },
+  "pip_requirements": {
+    "fileMatch": ["(^|/)requirements\\.txt$"]
+  },
+  "docker": {
+    "enabled": true,
+    "fileMatch": [
+      "(^|/)Dockerfile$",
+      "(^|/)Dockerfile\\.[^/]*$",
+      "(^|/)docker-compose[^/]*\\.ya?ml$",
+      "(^|/)podman-compose[^/]*\\.ya?ml$"
+    ]
+  }
+}

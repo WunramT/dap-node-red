@@ -1,0 +1,53 @@
+# {{PROJECT_NAME}} - GitLab CI/CD Pipeline
+# Multi-service deployment with Backend and Frontend containers
+
+# define global variables
+variables:
+  CI_REGISTRY: $HARBOR_REGISTRY
+  CI_REGISTRY_USER: $HARBOR_USER
+  CI_REGISTRY_PASSWORD: $HARBOR_PASSWORD
+
+# define stages
+stages:
+  - Scan
+  - Test
+  - Build
+  - Sign
+
+include:
+  # Semgrep Scan
+  - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/semgrep/semgrep-scan@~latest
+    inputs:
+      stage: Scan
+      job_name: scan:semgrep
+      ruleset: p/python p/gitleaks p/security-audit p/secrets p/dockerfile p/owasp-top-ten p/r2c-ci p/command-injection p/ci p/javascript p/typescript
+      allow_failure: true
+  # Trivy Scan
+  - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/trivy/trivy-scan@~latest
+    inputs:
+      stage: Scan
+      job_name: scan:trivy
+      allow_failure: true
+  # Hadolint Scan
+  - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/hadolint/hadolint-scan@~latest
+    inputs:
+      stage: Scan
+      job_name: scan:hadolint
+      dockerfile: '**/Dockerfile*'
+      allow_failure: true
+  # Include local backend pipeline
+  - local: 'backend/build-image-pipeline.yml'
+  # Include local frontend pipeline
+  - local: 'frontend/build-image-pipeline.yml'
+
+scan:semgrep:
+  rules:
+    - when: always
+
+scan:trivy:
+  rules:
+    - when: always
+
+scan:hadolint:
+  rules:
+    - when: always

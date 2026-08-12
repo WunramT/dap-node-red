@@ -1,0 +1,168 @@
+// Main Styles
+
+@use './variables' as vars;
+
+// Global Styles
+html {
+  background-color: vars.$color-bg;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: vars.$color-bg;
+  color: vars.$color-text;
+}
+
+// Vuetify Overrides
+.v-application {
+  background-color: vars.$color-bg !important;
+}
+
+// Card Styles
+.v-card {
+  background-color: vars.$color-card-bg !important;
+  color: vars.$color-text !important;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: vars.$color-card-hover !important;
+    box-shadow: vars.$shadow-md !important;
+  }
+}
+
+// Navigation Bar Overrides
+.v-app-bar {
+  background-color: vars.$color-nav-bg !important;
+
+  .v-btn {
+    color: vars.$color-text-nav !important;
+
+    &:hover {
+      color: vars.$color-text-nav-hover !important;
+      background-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    &.router-link-active {
+      color: vars.$color-text-nav-active !important;
+    }
+  }
+}
+
+// Buttons
+.v-btn {
+  &.v-btn--variant-flat {
+    &.text-primary {
+      background-color: vars.$color-primary !important;
+      color: vars.$color-text-white !important;
+
+      &:hover {
+        background-color: vars.$color-primary-hover !important;
+        box-shadow: vars.$shadow-primary !important;
+      }
+
+      &:active {
+        background-color: vars.$color-primary-active !important;
+      }
+    }
+
+    &.text-secondary {
+      background-color: vars.$color-nav-bg !important;
+      color: vars.$color-text-white !important;
+
+      &:hover {
+        background-color: vars.$color-secondary-hover !important;
+      }
+
+      &:active {
+        background-color: vars.$color-secondary-active !important;
+      }
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5 !important;
+  }
+}
+
+// Forms
+.v-input {
+  .v-field {
+    background-color: white !important;
+    border: 1px solid vars.$color-border;
+
+    &--focused {
+      border-color: vars.$color-border-focus !important;
+      box-shadow: 0 0 0 1px vars.$color-border-focus !important;
+    }
+  }
+
+  .v-label {
+    color: vars.$color-text-secondary !important;
+
+    &--active {
+      color: vars.$color-primary !important;
+    }
+  }
+}
+
+// Typography
+h1, h2, h3, h4, h5, h6 {
+  color: vars.$color-text;
+}
+
+.text-secondary {
+  color: vars.$color-text-secondary !important;
+}
+
+// Links
+a {
+  color: vars.$color-primary;
+  text-decoration: none;
+
+  &:hover {
+    color: vars.$color-primary-hover;
+    text-decoration: underline;
+  }
+
+  &:active {
+    color: vars.$color-primary-active;
+  }
+}
+
+// Utility Classes
+.bg-primary {
+  background-color: vars.$color-primary !important;
+}
+
+.bg-secondary {
+  background-color: vars.$color-nav-bg !important;
+}
+
+.bg-surface {
+  background-color: vars.$color-card-bg !important;
+}
+
+.text-nav {
+  color: vars.$color-text-nav !important;
+}
+
+// Scrollbar Styling
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: vars.$color-bg;
+}
+
+::-webkit-scrollbar-thumb {
+  background: vars.$color-border;
+  border-radius: 4px;
+
+  &:hover {
+    background: vars.$color-border-dark;
+  }
+}

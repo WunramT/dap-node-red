@@ -1,0 +1,28 @@
+# Test files - security patterns may differ in tests
+
+**/tests/
+**/test/
+**/**tests**/
+**/fixtures/
+**/\*\_test.py
+**/_.test.ts
+\*\*/_.spec.ts
+
+# Generated/vendored code
+
+**/node_modules/
+**/dist/
+**/.venv/
+**/venv/
+\*\*/**pycache**/
+
+# Migration files use raw SQL by design
+
+# Note: Specific nosemgrep comments still needed for documentation
+
+# backend/migrations/
+
+# Build artifacts
+
+**/\*.min.js
+**/\*.bundle.js

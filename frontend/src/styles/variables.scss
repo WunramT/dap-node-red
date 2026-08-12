@@ -1,0 +1,86 @@
+// Design System - Color Variables
+// Replace {{BRAND_COLOR}} with your brand color (e.g., #ce003c)
+@use "sass:color";
+
+// Main Colors
+$color-primary: {{BRAND_COLOR}};
+$color-nav-bg: #3c4649;
+$color-bg: #f6f6f6;
+$color-card-bg: #d1d1d3;
+
+// Text Colors
+$color-text: #000000;
+$color-text-nav: #9e9e9e;
+$color-text-nav-hover: #ffffff;
+$color-text-nav-active: {{BRAND_COLOR}};
+$color-text-white: #ffffff;
+$color-text-secondary: #666666;
+$color-text-disabled: #b0b0b0;
+
+// Status Colors
+$color-success: #4caf50;
+$color-warning: #ff9800;
+$color-error: #f44336;
+$color-info: #2196f3;
+
+// Borders
+$color-border-light: #e0e0e0;
+$color-border: #d1d1d3;
+$color-border-dark: #9e9e9e;
+$color-border-focus: {{BRAND_COLOR}};
+
+// Hover/Active States - Darken primary color by 10-15%
+$color-primary-hover: color.adjust({{BRAND_COLOR}}, $lightness: -10%);
+$color-primary-active: color.adjust({{BRAND_COLOR}}, $lightness: -15%);
+$color-secondary-hover: #2e3739;
+$color-secondary-active: #232a2c;
+$color-card-hover: #c5c5c7;
+
+// Shadows
+$shadow-sm: 0 1px 3px rgba(60, 70, 73, 0.1);
+$shadow-md: 0 4px 6px rgba(60, 70, 73, 0.15);
+$shadow-lg: 0 10px 20px rgba(60, 70, 73, 0.25);
+$shadow-primary: 0 4px 10px rgba({{BRAND_COLOR}}, 0.2);
+
+// CSS Variables export (for runtime access)
+:root {
+  // Main Colors
+  --color-primary: #{$color-primary};
+  --color-nav-bg: #{$color-nav-bg};
+  --color-bg: #{$color-bg};
+  --color-card-bg: #{$color-card-bg};
+
+  // Text
+  --color-text: #{$color-text};
+  --color-text-nav: #{$color-text-nav};
+  --color-text-nav-hover: #{$color-text-nav-hover};
+  --color-text-nav-active: #{$color-text-nav-active};
+  --color-text-white: #{$color-text-white};
+  --color-text-secondary: #{$color-text-secondary};
+  --color-text-disabled: #{$color-text-disabled};
+
+  // Status
+  --color-success: #{$color-success};
+  --color-warning: #{$color-warning};
+  --color-error: #{$color-error};
+  --color-info: #{$color-info};
+
+  // Borders
+  --color-border-light: #{$color-border-light};
+  --color-border: #{$color-border};
+  --color-border-dark: #{$color-border-dark};
+  --color-border-focus: #{$color-border-focus};
+
+  // Hover/Active
+  --color-primary-hover: #{$color-primary-hover};
+  --color-primary-active: #{$color-primary-active};
+  --color-secondary-hover: #{$color-secondary-hover};
+  --color-secondary-active: #{$color-secondary-active};
+  --color-card-hover: #{$color-card-hover};
+
+  // Shadows
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+  --shadow-lg: #{$shadow-lg};
+  --shadow-primary: #{$shadow-primary};
+}

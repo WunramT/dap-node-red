@@ -1,0 +1,67 @@
+# Development Dockerfile with hot-reload and debugging tools
+FROM python:3.13
+
+WORKDIR /app
+
+# Install system dependencies and development tools
+# Build tools required for compiling Python packages from source (Python 3.13 lacks prebuilt wheels)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    # Meta-package providing complete build toolchain (make, libc-dev, etc.)
+    build-essential \
+    # PostgreSQL development headers - Required for psycopg2-binary and psycopg[binary]
+    libpq-dev \
+    # Foreign Function Interface library - Required for cryptography package
+    libffi-dev \
+    # OpenSSL development headers - Required for cryptography and SSL support
+    libssl-dev \
+    # Rust toolchain (cargo + rustc) - Required for cryptography v46+ (builds with Rust backend)
+    cargo \
+    rustc \
+    # Development tools
+    git \
+    vim \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python packages
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install development tools
+RUN pip install --no-cache-dir \
+    ipython \
+    ipdb \
+    black \
+    pylint \
+    pytest \
+    pytest-cov \
+    debugpy \
+    watchdog \
+    python-dotenv
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    DEBUG=True
+
+# Expose ports (8000 for FastAPI, 5678 for debugpy)
+EXPOSE 8000 5678
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Create non-root user
+RUN useradd -m -u 1000 devuser && \
+    chown -R devuser:devuser /app
+
+# Copy entrypoint script and fix line endings
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh && \
+    sed -i 's/\r$//' /app/entrypoint.sh
+
+# Switch to non-root user
+USER devuser
