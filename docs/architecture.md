@@ -4,7 +4,7 @@ Status: target architecture, not yet built. Rationale and closed decisions: [`de
 
 ## The problem
 
-~20 Node-RED instances across ~8–10 site servers. Flows are edited in the browser editor and today reach production by hand. There is no history, no review, and no way to tell what is running.
+16 Node-RED instances: 8 site servers, each running a dev and a prod instance. Flows are edited in the browser editor and today reach production by hand. There is no history, no review, and no way to tell what is running.
 
 Topology is **mixed**, not a fleet: a few instances share logic, most are one-offs. The measured pair on `wag-svr-lin01` proves it — `node-red-prod` has 15 nodes and no palette modules, `node-red-test` has 226 nodes and depends on `node-red-contrib-postgresql` and `node-red-contrib-queue-gate`. Those are two different applications that happen to share a host. A template-first system would be wrong.
 
@@ -56,6 +56,10 @@ One artifact per app; env vars parameterize it for N instances. A flow file in t
 
 ## Flow deploy sequence
 
+`deploy.py` runs **on the target host**, not on the Jenkins agent. Jenkins ships it over the existing SSH hop and executes it there; from the host it reaches the instance by container IP on `app_network`. No instance publishes a port, and the site servers sit in separate subnets, so a central agent cannot reach a container directly — the host can.
+
+SSH is a transport for the script, never a path for writing flow files. The `rev` handshake and the no-restart property are exactly what the Admin API is here for.
+
 `scripts/deploy.py`, one instance at a time:
 
 1. `POST <admin_root>/auth/token` → Bearer token. `adminAuth` is active on every instance (`type: credentials`, bcrypt), so every call needs one.
@@ -79,13 +83,15 @@ Two systems, already wired in this repo, with different reach:
 - image build via the `ci-cd-catalog/buildah` component, signed via `ci-cd-catalog/cosign`
 - existing scan components (semgrep, trivy, hadolint) apply to the new Dockerfiles unchanged
 
-**Jenkins** (`Jenkinsfile`) — deploy only, because it holds the per-host SSH credentials (`<host>_pw`) and the host/IP map. Stages: dry-run diff → flow deploy → optional compose recreate for palette changes.
+**Jenkins** (`Jenkinsfile`) — deploy only, because it holds the per-host SSH credentials (`<host>_pw`) and the host/IP map, and because it is the only agent with network reach into the sites. Stages: dry-run diff → flow deploy → optional compose recreate for palette changes.
 
 Compose calls are **service-scoped** — `docker compose up -d node-red-prod`. A bare `docker compose up -d` would recreate NATS and the other services that share `/home/administrator/base_container/docker-compose.yml`. Task: move the Node-RED services into their own compose project so that risk disappears structurally rather than by discipline (~1h, see [`runbook.md`](runbook.md)).
 
 ## Measured environment facts
 
 Inventory ran on `wag-svr-lin01`, both containers. These are measured, not assumed.
+
+That host was rebuilt in the week before the inventory, which makes it the current baseline rather than a box being decommissioned — and makes `node-red-prod`'s 15 nodes worth a second look. A freshly rebuilt host whose prod instance holds 15 nodes and no palette modules, while its test instance holds 226 nodes and two palette modules, reads more like a prod instance that has not been migrated back yet than like a small production application.
 
 | Fact | Value | Consequence |
 |---|---|---|
@@ -107,10 +113,19 @@ Inventory ran on `wag-svr-lin01`, both containers. These are measured, not assum
 
 Build and test this first, against both real flows (18 KB / 15 nodes, and 151 KB / 226 nodes). If the diffs are not readable by a human reviewer, the whole Git-as-source-of-truth approach fails at this step, and that is cheap to discover in an hour.
 
-## What must change in this repository
+## Visibility
 
-This repo currently holds the unmodified company web-app template (FastAPI, Vue 3, Postgres, Alembic, `app_name = "dapnodered"`, placeholders still in `setup_project.py`). None of it serves this architecture — there is no backend, no database, and no UI in the target design.
+There is no way to see, today, what is actually running on 16 instances. That gap is real and worth closing — as a **report**, not a control plane.
 
-Reusable as-is: the `ci-cd-catalog` component wiring in `.gitlab-ci.yml`, the Harbor registry host, and the Jenkins host map plus `sshCommand` deploy pattern in `Jenkinsfile`.
+`drift-check.py` sweeps every instance, normalizes what it gets, diffs against Git, and emits JSON. CI renders that JSON into a static HTML page and publishes it. It answers the questions that matter — which instances match Git, which drifted, which flow version and image tag each one runs, when it was last deployed — and it answers them from Git plus a read-only sweep.
 
-Everything else (`backend/`, `frontend/`, `.devcontainer/`, `docker-compose.dev.yml`, `setup_project.py`, `renovate.json`, `.env.example`, `README.md`) is template scaffolding for a stack this project does not use. Removing it is a destructive, one-way change — it is question 5 in [`open-questions.md`](open-questions.md), not something to do unasked.
+What it deliberately does not do is offer a button. Deploys go through the pipeline, where they are reviewed and recorded. A UI that writes is decision 1 rebuilt in a browser, and it brings back the database, the backend and the auth layer that the static page needs none of. See decision 11 in [`decisions.md`](decisions.md).
+
+## Inherited from the project template
+
+This repository was created from the company web-app template and originally held its whole stack. The FastAPI backend, the Vue 3 frontend, the Postgres compose file, the dev containers and the template's placeholder setup script have been removed — none of them serve this architecture.
+
+Kept, because the new pipeline needs them:
+
+- the `ci-cd-catalog` scan-component wiring in `.gitlab-ci.yml`, and the Harbor registry host
+- the `Jenkinsfile`, which still holds the host map, the per-host credential ids and the `sshCommand` deploy pattern. It deploys the template's stack, not this one, and is replaced once the new pipeline exists — removing it earlier would delete the only record of that map.

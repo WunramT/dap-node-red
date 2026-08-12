@@ -57,4 +57,16 @@ Discovered in this repo rather than decided: `.gitlab-ci.yml` builds, scans and 
 
 It reports. It never writes, never reconciles, never "fixes" an instance. A reconciling drift checker is decision 3 reintroduced through the back door.
 
-If a drift **view** is ever wanted, it is a rendered read-only report built from Git plus a `GET /flows` sweep — not a control plane, and not a reason to keep a database.
+## 10. The flow deploy runs on the target host — Closed
+
+Jenkins ships `deploy.py` over its existing SSH connection and runs it there; the script reaches the instance by container IP on `app_network`.
+
+No instance publishes a port and the 8 site servers sit in separate subnets, so a central agent cannot reach a container directly. The host can. SSH carries the script; it never writes a flow file — that would be decision 2 abandoned for the transport it replaced.
+
+## 11. The visibility layer is a static report — Closed
+
+A read-only page rendered from `drift-check.py` output plus Git: which instances match Git, which drifted, which flow version and image tag each one runs. Generated in CI, published as a static page.
+
+The pull toward a real web application is understandable — the current state is genuinely invisible. It is still the wrong trade. A read-only report answers every question that matters here with a JSON producer and an HTML template. A web application answers the same questions and adds a backend, a database, an auth layer and a deployment of its own, and then grows a deploy button — at which point deploys stop being reviewed commits and decision 1 is undone from inside the browser.
+
+Deploys stay in the pipeline, where they are reviewed and recorded. The page shows state.

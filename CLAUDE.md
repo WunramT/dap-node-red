@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Node-RED multi-instance deployment. Git holds the flows, CI deploys them, ~20 instances across ~8–10 site servers.
+Node-RED multi-instance deployment. Git holds the flows, CI deploys them, 16 instances across 8 site servers (dev and prod on each).
 
 Read before working:
 
@@ -24,6 +24,8 @@ These hold across every task in this repo. Each traces to a decision in `docs/de
 
 Flow deploys are daily and must not restart a container. Palette deploys are rare and may. Any design that restarts a container to change flow logic is the wrong design.
 
-`docs/open-questions.md` questions 1–4 gate the scaffold: `deploy.py`, `schemas/registry.schema.json` and the repository layout each depend on an answer that is not in yet. Build `normalize.py` against the real sample flows first — it needs none of them, and it is the cheapest test of whether the whole approach produces reviewable diffs.
+Build `normalize.py` first, against the sample flows in `samples/`. It depends on none of the open questions, and it is the cheapest test of whether the whole approach produces reviewable diffs — if a 226-node flow does not diff readably, that is worth knowing before anything else is built.
 
-The repository still contains the company web-app template it was created from (`backend/`, `frontend/`, `.devcontainer/`, `setup_project.py`). It is unused by this architecture and its removal is open question 5 — awaiting an explicit go-ahead.
+The repository layout still depends on open question 1 (whether the 16 `settings.js` files are one file or several), so hold off on `schemas/registry.schema.json` until the discovery reports are in.
+
+The `Jenkinsfile` is the one inherited from the project template — it deploys a FastAPI/Vue stack that no longer exists here. It stays because it holds the host map and per-host credential ids the new pipeline needs, and it is replaced rather than edited.

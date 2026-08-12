@@ -50,4 +50,8 @@ Two substitution mechanisms, deliberately different in scope:
 
 ## Base URL
 
-`host` names the server. How `deploy.py` turns that into an API base URL depends on how the Admin API is reachable from the deploying agent — unresolved, and the reason `admin_base_url` is not yet a field. See question 1 in [`open-questions.md`](open-questions.md). Resolve that before writing `schemas/registry.schema.json`, or the schema gets a field it has to lose again.
+`host` and `admin_root` are enough. There is no `admin_base_url` field, because `deploy.py` runs on the target host and reaches the instance by container IP on `app_network` — the base is resolved at runtime from the compose service name, not stored per instance (decision 10).
+
+## Scope
+
+16 entries: 8 site servers, each with a dev and a prod instance. The host names come from the map in the `Jenkinsfile`; `discover-gaps.sh` confirms the instance names per host.

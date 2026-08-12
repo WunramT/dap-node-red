@@ -1,28 +1,19 @@
 # Test files - security patterns may differ in tests
-
 **/tests/
-**/test/
-**/**tests**/
 **/fixtures/
-**/\*\_test.py
-**/_.test.ts
-\*\*/_.spec.ts
+**/*_test.py
 
 # Generated/vendored code
-
 **/node_modules/
-**/dist/
 **/.venv/
 **/venv/
-\*\*/**pycache**/
+**/__pycache__/
 
-# Migration files use raw SQL by design
+# Sample flows captured from running instances — data, not source.
+# They contain no credentials (those live in flows_cred.json, which is
+# gitignored), but they do contain broker hostnames and topic names that
+# read as secrets to the scanner.
+samples/
 
-# Note: Specific nosemgrep comments still needed for documentation
-
-# backend/migrations/
-
-# Build artifacts
-
-**/\*.min.js
-**/\*.bundle.js
+# Per-host discovery reports produced by scripts/discover-gaps.sh
+inventory/

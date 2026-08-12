@@ -1,16 +1,17 @@
-# {{PROJECT_NAME}} - GitLab CI/CD Pipeline
-# Multi-service deployment with Backend and Frontend containers
+# dap-node-red — build and validation pipeline
+#
+# GitLab CI does everything that needs no site access: validation, image build,
+# signing. Deployment to the site servers lives in the Jenkinsfile, because
+# Jenkins holds the per-host SSH credentials. See docs/architecture.md.
 
-# define global variables
 variables:
   CI_REGISTRY: $HARBOR_REGISTRY
   CI_REGISTRY_USER: $HARBOR_USER
   CI_REGISTRY_PASSWORD: $HARBOR_PASSWORD
 
-# define stages
 stages:
   - Scan
-  - Test
+  - Validate
   - Build
   - Sign
 
@@ -20,7 +21,7 @@ include:
     inputs:
       stage: Scan
       job_name: scan:semgrep
-      ruleset: p/python p/gitleaks p/security-audit p/secrets p/dockerfile p/owasp-top-ten p/r2c-ci p/command-injection p/ci p/javascript p/typescript
+      ruleset: p/python p/gitleaks p/security-audit p/secrets p/dockerfile p/command-injection p/ci
       allow_failure: true
   # Trivy Scan
   - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/trivy/trivy-scan@~latest
@@ -35,10 +36,6 @@ include:
       job_name: scan:hadolint
       dockerfile: '**/Dockerfile*'
       allow_failure: true
-  # Include local backend pipeline
-  - local: 'backend/build-image-pipeline.yml'
-  # Include local frontend pipeline
-  - local: 'frontend/build-image-pipeline.yml'
 
 scan:semgrep:
   rules:
@@ -51,3 +48,12 @@ scan:trivy:
 scan:hadolint:
   rules:
     - when: always
+
+# Still to come, once the scripts they call exist (see docs/open-questions.md):
+#
+#   validate:registry   — registry.yml against schemas/registry.schema.json
+#   validate:normalize  — every apps/*/flows.json equals its normalized form
+#   validate:external   — no function node declares its own npm module,
+#                         which is what keeps the baked image a real guarantee
+#   build:buildah:*     — one image per apps/<app>/Dockerfile
+#   sign:cosign:*       — matching the existing image-signing convention
