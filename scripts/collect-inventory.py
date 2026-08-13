@@ -763,9 +763,26 @@ def main():
     (INV / "REPORT.md").write_text(build_report(results), encoding="utf-8")
     (ROOT / "registry.draft.yml").write_text(build_registry_draft(results), encoding="utf-8")
 
-    print(f"\nWrote:\n  {INV / 'REPORT.md'}\n  {ROOT / 'registry.draft.yml'}"
-          f"\n  {SAMPLES}/ ({len(list(SAMPLES.glob('*.json'))) if SAMPLES.exists() else 0} flow files)")
-    print("\nSend me inventory/REPORT.md.")
+    flows = sorted(SAMPLES.glob("*.flows.json")) if SAMPLES.exists() else []
+    expected = [i for h in results for i in h["instances"]
+                if not i.get("error") and (i.get("flows") or {}).get("nodes") is not None]
+
+    print("\n" + "=" * 70)
+    print("Wrote:")
+    print(f"  {INV / 'REPORT.md'}")
+    print(f"  {ROOT / 'registry.draft.yml'}")
+    print(f"  {SAMPLES}{'/' if flows else ''}")
+    for f in flows:
+        print(f"      {f.name}")
+    print("=" * 70)
+
+    if len(flows) != len(expected):
+        print(f"\nWARNING: {len(expected)} instances returned a flow but {len(flows)} files "
+              f"are in {SAMPLES} — something failed to write there.")
+    elif flows:
+        print(f"\n{len(flows)} flow files. They are in {SAMPLES}, NOT in {INV}.")
+
+    print("\nSend inventory/REPORT.md, and commit samples/ so normalize.py can run against it.")
 
 
 if __name__ == "__main__":
