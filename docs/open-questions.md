@@ -67,20 +67,11 @@ The existing pipeline pushes to `harbor.aks-infra.polipol-service.de` under `dap
 
 If prod is genuinely unmigrated, it is the ideal first target — nothing to lose. If it is live, the 15-node flow is still the easier of the two to bring under Git first.
 
-### 6. Three settings.js differences to reconcile
-
-The diffs showed every difference across the 13 plain instances — 9 groups by literal text collapsed to 5 by configuration. Most are noise — indentation, whether `httpAdminRoot` is commented out, and comment blocks that Node-RED rewrote between versions (`wag` was rebuilt recently and has `telemetry` and `globalFunctionTimeout` blocks the others lack). Three are real:
-
-1. **`cho-prod` logs at `level: "trace"`** while every other instance logs at `info`. Reads like debugging left switched on in production.
-2. **`wfm` has `adminAuth` commented out entirely.** Its editor and Admin API are open to anyone who can reach the container — and it publishes port 1880 on the host. Worth deciding on before the pipeline gains write access to it.
-3. **Node-RED versions differ**, because every instance runs `nodered/node-red:latest` and was first started on a different date. Pinning (decision 5) settles this, but the pin has to be chosen against the oldest instance still in use.
-
-None of these block the scaffold. All three want a decision before the first deploy.
-
 ## Answered
 
 | Question | Answer | Recorded in |
 |---|---|---|
+| The two settings.js deviations? | Both normalized to what the others do — `wfm` gets `adminAuth`, `cho-prod` goes back to `level: "info"`. One settings.js in the repo | decision 13 |
 | What is every instance's admin root? | Probed on all 13: 8 on `/node-red-prod` or `/node-red-test`, 5 on plain `/`. All in `registry.yml` | [`architecture.md`](architecture.md) |
 | Which Node-RED versions are running? | Three — 4.0.5, 4.0.9, 5.0.1. Pin each instance to its current version first; converging is a separate upgrade | [`architecture.md`](architecture.md) |
 | Are the settings.js files the same file? | Yes — one template plus env overrides is viable. The literal text differs by whitespace, comment state and settings.js vintage; the real config differences are three, listed below | [`architecture.md`](architecture.md) |

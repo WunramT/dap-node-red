@@ -15,7 +15,7 @@ The alternative was a database-backed control plane (the *DAP Node-RED Managemen
 
 Harvested from that concept and kept: the manifest shape (`global_variables` + per-instance `variables` → `registry.yml`), a narrow Jinja2 render step for composite strings only, the `setup_server.sh` bootstrap idea, and `--dry-run`.
 
-Its port-allocation logic is not needed: no instance publishes a port, nginx routes by path.
+Its port-allocation logic is not needed. Ports are already allocated, if inconsistently — 6 instances publish one, 7 do not — and nothing in this design adds an instance, so there is nothing to allocate.
 
 ## 2. Admin API is the flow transport — Closed
 
@@ -61,7 +61,9 @@ It reports. It never writes, never reconciles, never "fixes" an instance. A reco
 
 Jenkins ships `deploy.py` over its existing SSH connection and runs it there; the script reaches the instance by container IP on `app_network`.
 
-No instance publishes a port and the 8 site servers sit in separate subnets, so a central agent cannot reach a container directly. The host can. SSH carries the script; it never writes a flow file — that would be decision 2 abandoned for the transport it replaced.
+Port publishing is inconsistent — 6 of 13 instances publish one — and the site servers sit in separate subnets, so a central agent would reach some instances and not others. From the host every instance is reachable by container IP, which the inventory confirmed on all 13. One code path instead of two.
+
+SSH carries the script; it never writes a flow file — that would be decision 2 abandoned for the transport it replaced.
 
 ## 11. The visibility layer is a static report — Closed
 
@@ -78,4 +80,15 @@ The two FlowFuse-managed servers are exported once into `apps/`, brought up as p
 Keeping it alongside would mean maintaining two control planes with two answers to "what is running", which is the problem this project exists to end. And FlowFuse owning the flows is decision 1's rejected shape — a database as source of truth, with the flow reachable only through its platform.
 
 What the migration costs, and what it does not, depends on where the authoritative flow lives and whether the credential key can be exported. Both are inventory questions before they are design questions. See [`architecture.md`](architecture.md) and [`open-questions.md`](open-questions.md).
+
+## 13. One settings.js, and the two deviations normalized — Closed
+
+The 13 plain instances configure the same thing. Nine groups by literal text collapsed to five by configuration, and of those five, two were the per-instance admin root and one was the settings.js scaffold that 5.0.1 generates. Two were real deviations, and both are being brought back to what the others do:
+
+- **`wfm` gets `adminAuth`.** It answered `200` unauthenticated — its editor and Admin API were open to anyone who could reach the container, on a host that publishes 1880.
+- **`cho-prod` goes back to `level: "info"`.** It was the only instance logging at `trace`.
+
+So the repository holds **one** `settings.js`, with the genuinely per-instance values — `httpAdminRoot`, `dns_search`, `adminAuth`, `credentialSecret` — supplied per instance rather than forked into 13 files.
+
+Every change to `settings.js` restarts the container, so they are batched: the backup gate, the `credentialSecret` pin and these two fixes are one edit and one restart per instance, not three. Procedure: [`runbook.md`](runbook.md).
 

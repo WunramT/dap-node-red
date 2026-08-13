@@ -18,17 +18,50 @@ Per instance, tar together:
 
 Then pull the tarballs off the box before anything else happens.
 
-## Pinning credentialSecret
+## The one settings.js edit
 
-Only after the backup gate, and only to the **existing** generated value. Same key means no re-encryption; a new key means every stored credential is unreadable.
+Every change to `settings.js` restarts the container. Three changes are pending — the `credentialSecret` pin, and on two instances a deviation to normalize — so they are made in one edit and one restart per instance, after the backup gate.
 
-1. Read the generated key from `/data/.config.runtime.json` on the host.
-2. Store it in a Jenkins credential; record the id as `credential_secret_id` in `registry.yml`.
-3. Set `credentialSecret` explicitly in `settings.js` to that value.
-4. Restart the instance, service-scoped.
-5. Open the editor and confirm a stored credential still decrypts.
+**1. Read the generated key.** It is the only copy.
 
-Never echo the value into a log, a pipeline output, or a commit.
+```bash
+ssh <host> "sudo cat /path/to/<instance>/data/.config.runtime.json"
+```
+
+Store the `_credentialSecret` value in a Jenkins credential and record the id as `credential_secret_id` in `registry.yml`. Never echo it into a log, a pipeline output, or a commit.
+
+**2. Edit `settings.js`.** For every instance:
+
+```js
+credentialSecret: "<the value from step 1>",
+```
+
+Pinning to the **existing** value means no re-encryption. A new value makes every stored credential unreadable.
+
+On `cho-prod` additionally, bringing it back to what the other twelve do (decision 13):
+
+```js
+level: "info",     // was "trace"
+```
+
+On `wfm` additionally, uncomment the `adminAuth` block. Generate the hash inside the container so the password never reaches the shell history — type it, then Ctrl-D:
+
+```bash
+ssh wfm-svr-lin01
+docker exec -i node-red node -e 'const b=require("bcryptjs");let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(b.hashSync(d.trim(),8)))'
+```
+
+If `bcryptjs` does not resolve in that image, `docker exec -it node-red npx node-red-admin hash-pw` does the same and prompts for the password. Put the username and password into a Jenkins credential and record the id as `auth_credential_id`.
+
+**3. Restart, service-scoped.**
+
+```bash
+docker compose -f <compose_file> up -d <compose_service>
+```
+
+The compose file and service name differ per host; both are in `registry.yml`.
+
+**4. Verify.** Open the editor and confirm a stored credential still decrypts. On `wfm`, confirm the login prompt appears and that `curl -s -o /dev/null -w '%{http_code}' http://<ip>:1880/flows` now returns `401` rather than `200`.
 
 ## Compose split (~1h)
 
