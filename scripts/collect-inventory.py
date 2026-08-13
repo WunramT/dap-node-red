@@ -209,11 +209,14 @@ def collect_host(cfg) -> dict:
         remote = Remote(cfg)
         host["fqdn"] = remote.run("hostname -f")
 
-        names = [
-            n for n in remote.run(
-                "docker ps -a --format '{{.Names}}'"
-            ).splitlines() if re.search(r"node.?red", n, re.I)
-        ]
+        # Match on the image as well as the container name — a site that named
+        # its container something else still runs a node-red image.
+        names = []
+        for line in remote.run("docker ps -a --format '{{.Names}}\t{{.Image}}'").splitlines():
+            parts = line.split("\t")
+            if any(re.search(r"node.?red", p, re.I) for p in parts):
+                names.append(parts[0])
+        host["all_containers"] = remote.run("docker ps -a --format '{{.Names}}\t{{.Image}}'").splitlines()
 
         # Every service sharing a compose file with Node-RED — the blast
         # radius of a bare `docker compose up -d`.
@@ -283,7 +286,7 @@ def collect_host(cfg) -> dict:
                         re.search(rf"^\s*{field}\s*:", settings, re.M)
                     )
                 (INV / "settings").mkdir(parents=True, exist_ok=True)
-                (INV / "settings" / f"{cfg['name']}__{name}.settings.js").write_text(masked)
+                (INV / "settings" / f"{cfg['name']}__{name}.settings.js").write_text(masked, encoding="utf-8")
             else:
                 inst["settings"] = None
 
@@ -308,7 +311,7 @@ def collect_host(cfg) -> dict:
                         }),
                     }
                     SAMPLES.mkdir(parents=True, exist_ok=True)
-                    (SAMPLES / f"{cfg['name']}__{name}.flows.json").write_text(flows_raw)
+                    (SAMPLES / f"{cfg['name']}__{name}.flows.json").write_text(flows_raw, encoding="utf-8")
                 except json.JSONDecodeError as exc:
                     inst["flows"] = {"error": f"unparseable: {exc}"}
             else:
@@ -368,6 +371,16 @@ def build_report(hosts: list) -> str:
             add(f"- **{h['host']}** — {h['error']}")
         add("")
 
+    empty = [h for h in hosts if not h["error"] and not h["instances"]]
+    if empty:
+        add("## Hosts with no Node-RED container\n")
+        add("Everything these hosts do run, so a differently-named instance is visible:\n")
+        for h in empty:
+            add(f"**{h['host']}**\n")
+            add("```")
+            L.extend(h.get("all_containers") or ["(no containers at all)"])
+            add("```\n")
+
     # --- Q1: settings.js ---------------------------------------------------
     add("## Q1 — Are the settings.js files the same file?\n")
     groups: dict[str, list] = {}
@@ -390,9 +403,9 @@ def build_report(hosts: list) -> str:
         add("### Diffs between group representatives\n")
         reps = [members[0] for _, members in sorted(groups.items(), key=lambda kv: -len(kv[1]))]
         base = reps[0]
-        base_txt = (INV / "settings" / f"{base['host']}__{base['name']}.settings.js").read_text()
+        base_txt = (INV / "settings" / f"{base['host']}__{base['name']}.settings.js").read_text(encoding="utf-8")
         for other in reps[1:]:
-            other_txt = (INV / "settings" / f"{other['host']}__{other['name']}.settings.js").read_text()
+            other_txt = (INV / "settings" / f"{other['host']}__{other['name']}.settings.js").read_text(encoding="utf-8")
             diff = list(difflib.unified_diff(
                 mask_per_instance(base_txt).splitlines(),
                 mask_per_instance(other_txt).splitlines(),
@@ -512,13 +525,20 @@ def build_registry_draft(hosts: list) -> str:
 # ---------------------------------------------------------------------------
 
 def main():
+    # Windows consoles default to cp1252; flow node names contain arrows and emoji.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     try:
         import paramiko  # noqa: F401
     except ImportError:
         sys.exit("paramiko is missing — run: pip install paramiko")
 
     local = ROOT / "hosts.local.json"
-    targets = json.loads(local.read_text()) if local.exists() else HOSTS
+    targets = json.loads(local.read_text(encoding="utf-8")) if local.exists() else HOSTS
     targets = [t for t in targets if t.get("user") and (t.get("password") or t.get("key_file"))]
     if not targets:
         sys.exit("No credentials configured — fill in HOSTS or create hosts.local.json.")
@@ -530,11 +550,11 @@ def main():
         host = collect_host(cfg)
         n = len([i for i in host["instances"] if not i.get("error")])
         print(f"[{cfg['name']}] {'ERROR: ' + host['error'] if host['error'] else f'{n} instances'}", flush=True)
-        (INV / f"{cfg['name']}.json").write_text(json.dumps(host, indent=2, sort_keys=True))
+        (INV / f"{cfg['name']}.json").write_text(json.dumps(host, indent=2, sort_keys=True), encoding="utf-8")
         results.append(host)
 
-    (INV / "REPORT.md").write_text(build_report(results))
-    (ROOT / "registry.draft.yml").write_text(build_registry_draft(results))
+    (INV / "REPORT.md").write_text(build_report(results), encoding="utf-8")
+    (ROOT / "registry.draft.yml").write_text(build_registry_draft(results), encoding="utf-8")
 
     print(f"\nWrote:\n  {INV / 'REPORT.md'}\n  {ROOT / 'registry.draft.yml'}"
           f"\n  {SAMPLES}/ ({len(list(SAMPLES.glob('*.json'))) if SAMPLES.exists() else 0} flow files)")
