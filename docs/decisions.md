@@ -70,3 +70,12 @@ A read-only page rendered from `drift-check.py` output plus Git: which instances
 The pull toward a real web application is understandable — the current state is genuinely invisible. It is still the wrong trade. A read-only report answers every question that matters here with a JSON producer and an HTML template. A web application answers the same questions and adds a backend, a database, an auth layer and a deployment of its own, and then grows a deploy button — at which point deploys stop being reviewed commits and decision 1 is undone from inside the browser.
 
 Deploys stay in the pipeline, where they are reviewed and recorded. The page shows state.
+
+## 12. FlowFuse is a migration source, not a deploy target — Closed
+
+The two FlowFuse-managed servers are exported once into `apps/`, brought up as plain containers, and then deployed like every other instance. FlowFuse gets no transport, no `registry.yml` entry, no pipeline stage.
+
+Keeping it alongside would mean maintaining two control planes with two answers to "what is running", which is the problem this project exists to end. And FlowFuse owning the flows is decision 1's rejected shape — a database as source of truth, with the flow reachable only through its platform.
+
+What the migration costs, and what it does not, depends on where the authoritative flow lives and whether the credential key can be exported. Both are inventory questions before they are design questions. See [`architecture.md`](architecture.md) and [`open-questions.md`](open-questions.md).
+

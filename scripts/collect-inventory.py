@@ -201,6 +201,13 @@ SETTINGS_FIELDS = {
 
 SETTINGS_PRESENT = ("credentialSecret", "adminAuth", "contextStorage")
 
+# Anything that is a Node-RED runtime, however it is packaged.
+RUNTIME_HINT = re.compile(r"node.?red|flowfuse|flowforge", re.I)
+FLOWFUSE_HINT = re.compile(r"flowfuse|flowforge", re.I)
+
+# Env var names whose values stay on the host.
+SECRET_ENV = re.compile(r"pass|secret|token|key|credential|auth", re.I)
+
 
 def collect_host(cfg) -> dict:
     host = {"host": cfg["name"], "instances": [], "error": None}
@@ -210,13 +217,16 @@ def collect_host(cfg) -> dict:
         host["fqdn"] = remote.run("hostname -f")
 
         # Match on the image as well as the container name — a site that named
-        # its container something else still runs a node-red image.
-        names = []
-        for line in remote.run("docker ps -a --format '{{.Names}}\t{{.Image}}'").splitlines():
-            parts = line.split("\t")
-            if any(re.search(r"node.?red", p, re.I) for p in parts):
-                names.append(parts[0])
-        host["all_containers"] = remote.run("docker ps -a --format '{{.Names}}\t{{.Image}}'").splitlines()
+        # its container something else still runs a node-red image. FlowFuse
+        # instances are Node-RED too, under a name that says nothing about it.
+        host["all_containers"] = remote.run(
+            "docker ps -a --format '{{.Names}}\t{{.Image}}'"
+        ).splitlines()
+        names = [
+            line.split("\t")[0]
+            for line in host["all_containers"]
+            if RUNTIME_HINT.search(line)
+        ]
 
         # Every service sharing a compose file with Node-RED — the blast
         # radius of a bare `docker compose up -d`.
@@ -268,6 +278,47 @@ def collect_host(cfg) -> dict:
                         "--format '{{index .Labels \"com.docker.compose.service\"}}'"
                     ).split()
                 ))
+
+            # --- FlowFuse ------------------------------------------------------
+            # FlowFuse runs Node-RED under its own launcher and can keep the
+            # authoritative flow in its platform rather than in /data/flows.json.
+            # Nothing here assumes a layout — it reports what is actually there,
+            # so the migration off it is designed against facts.
+            env_pairs = [e.split("=", 1) for e in (cfg_.get("Env") or []) if "=" in e]
+            inst["env"] = {
+                k: ("<masked>" if SECRET_ENV.search(k) else v) for k, v in env_pairs
+            }
+            inst["is_flowfuse"] = bool(
+                FLOWFUSE_HINT.search(str(cfg_.get("Image")))
+                or FLOWFUSE_HINT.search(json.dumps(labels))
+                or any(FLOWFUSE_HINT.search(k) or k.startswith("FORGE_") for k, _ in env_pairs)
+            )
+
+            if inst["is_flowfuse"]:
+                ff = {"listing": {}}
+                for d in ("/data", "/data/.node-red", "/opt/flowforge", "/usr/src/flowforge-nr-launcher"):
+                    out = remote.run(f"docker exec {name} sh -lc 'ls -la {d} 2>/dev/null | head -40'")
+                    if out:
+                        ff["listing"][d] = out.splitlines()
+                ff["flow_files"] = remote.run(
+                    f"docker exec {name} sh -lc "
+                    "'find / -maxdepth 6 -name \"flows*.json\" -not -path \"*/node_modules/*\" "
+                    "2>/dev/null | head -20'"
+                ).splitlines()
+                ff["storage_module"] = remote.run(
+                    f"docker exec {name} sh -lc "
+                    "'grep -rhoE \"storageModule.{0,60}\" /data/settings.js /usr/src/*/settings.js "
+                    "2>/dev/null | head -5'"
+                ).splitlines()
+                ff["launcher_version"] = remote.run(
+                    f"docker exec {name} sh -lc "
+                    "'cat /usr/src/*/package.json 2>/dev/null | head -20'"
+                ).splitlines()
+                ff["node_red_version"] = remote.run(
+                    f"docker exec {name} sh -lc "
+                    "'node -e \"console.log(require(\\\"node-red/package.json\\\").version)\" 2>/dev/null'"
+                )
+                inst["flowfuse"] = ff
 
             # --- settings.js -------------------------------------------------
             settings = remote.read(name, mount, "settings.js")
@@ -357,12 +408,18 @@ def collect_host(cfg) -> dict:
 # ---------------------------------------------------------------------------
 
 def build_report(hosts: list) -> str:
-    instances = [i for h in hosts for i in h["instances"] if not i.get("error")]
+    everything = [i for h in hosts for i in h["instances"] if not i.get("error")]
+    flowfuse = [i for i in everything if i.get("is_flowfuse")]
+    # FlowFuse instances are a migration source, not a deploy target — they are
+    # kept out of the plain-instance analysis so they cannot skew it.
+    instances = [i for i in everything if not i.get("is_flowfuse")]
     L = []
     add = L.append
 
     add("# Inventory report\n")
-    add(f"{len(instances)} instances across {len([h for h in hosts if not h['error']])} reachable hosts.\n")
+    add(f"{len(everything)} Node-RED runtimes across "
+        f"{len([h for h in hosts if not h['error']])} reachable hosts — "
+        f"{len(instances)} plain, {len(flowfuse)} under FlowFuse.\n")
 
     failed = [h for h in hosts if h["error"]]
     if failed:
@@ -381,8 +438,41 @@ def build_report(hosts: list) -> str:
             L.extend(h.get("all_containers") or ["(no containers at all)"])
             add("```\n")
 
+    # --- FlowFuse ----------------------------------------------------------
+    if flowfuse:
+        add("## FlowFuse instances — migration source\n")
+        add(f"{len(flowfuse)} runtimes run under FlowFuse and are to become plain "
+            "Node-RED containers as part of this project. They are excluded from the "
+            "analysis below, because they answer different questions.\n")
+        add("The decisive one: **where does the authoritative flow live?** If FlowFuse "
+            "keeps it in its platform rather than in `/data/flows.json`, the file on disk "
+            "is a cache or absent, and the migration is an export from FlowFuse — not a "
+            "file copy.\n")
+        for i in flowfuse:
+            ff = i.get("flowfuse") or {}
+            add(f"### {i['host']}/{i['name']}\n")
+            add(f"- image: `{i['image']}`")
+            add(f"- Node-RED version: `{ff.get('node_red_version') or 'unknown'}`")
+            add(f"- storage module: `{'; '.join(ff.get('storage_module') or []) or 'not found in settings.js'}`")
+            add(f"- flow files on disk: {', '.join(f'`{p}`' for p in ff.get('flow_files') or []) or '**none found**'}")
+            forge = {k: v for k, v in (i.get("env") or {}).items() if k.startswith("FORGE_")}
+            if forge:
+                add("- FlowFuse env (secret values masked):")
+                for k, v in sorted(forge.items()):
+                    add(f"  - `{k}` = `{v}`")
+            if i.get("palette"):
+                add(f"- palette: {', '.join(sorted(i['palette']))}")
+            for d, lines in (ff.get("listing") or {}).items():
+                add(f"\n<details><summary><code>{d}</code></summary>\n")
+                add("```")
+                L.extend(lines)
+                add("```\n</details>")
+            add("")
+
     # --- Q1: settings.js ---------------------------------------------------
     add("## Q1 — Are the settings.js files the same file?\n")
+    add("Plain Node-RED instances only; FlowFuse-managed settings.js files are "
+        "generated by the launcher and are not part of this comparison.\n")
     groups: dict[str, list] = {}
     for i in instances:
         if i.get("settings"):
@@ -508,6 +598,9 @@ def build_registry_draft(hosts: list) -> str:
             if i.get("error"):
                 continue
             s = i.get("settings") or {}
+            if i.get("is_flowfuse"):
+                L.append(f"  # {i['name']} on {h['host']} runs under FlowFuse — migrate it to a")
+                L.append(f"  # plain container first, then add it here.")
             L += [
                 f"  - name: {i['name']}",
                 f"    host: {h['host']}",

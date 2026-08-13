@@ -24,10 +24,13 @@ Documentation and host discovery only. The scaffold — `normalize.py`, `deploy.
 Collect the facts the scaffold needs:
 
 ```bash
-mkdir -p inventory
-scp scripts/discover-gaps.sh <host>:/tmp/ && ssh <host> 'bash /tmp/discover-gaps.sh' > inventory/<host>.txt
+pip install paramiko
+# credentials go in hosts.local.json — gitignored, see the script's docstring
+python3 scripts/collect-inventory.py
 ```
 
-Read-only. It reports the existence of `credentialSecret` and `adminAuth`, never their values.
+Read-only. It writes `inventory/REPORT.md`, a `registry.yml` draft and the real flows into
+`samples/`, and reports the existence of `credentialSecret`, `adminAuth` and any FlowFuse
+token, never their values.
 
 The `Jenkinsfile` is still the one inherited from the project template. It holds the host and credential map the new deployment pipeline needs, so it stays until that pipeline replaces it.

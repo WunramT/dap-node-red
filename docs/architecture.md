@@ -6,6 +6,8 @@ Status: target architecture, not yet built. Rationale and closed decisions: [`de
 
 16 Node-RED instances: 8 site servers, each running a dev and a prod instance. Flows are edited in the browser editor and today reach production by hand. There is no history, no review, and no way to tell what is running.
 
+Two of the servers do not run plain Node-RED containers at all — they run instances under **FlowFuse**, which are to become plain containers as part of this project. See "FlowFuse instances" below.
+
 Topology is **mixed**, not a fleet: a few instances share logic, most are one-offs. The measured pair on `wag-svr-lin01` proves it — `node-red-prod` has 15 nodes and no palette modules, `node-red-test` has 226 nodes and depends on `node-red-contrib-postgresql` and `node-red-contrib-queue-gate`. Those are two different applications that happen to share a host. A template-first system would be wrong.
 
 ## The shape
@@ -112,6 +114,21 @@ That host was rebuilt in the week before the inventory, which makes it the curre
 `normalize.py`: strip the positional keys `x`, `y`, `z`; sort nodes by `id`; stable key order; 2-space indent. Idempotent — a second run is a no-op. Round-trip safe — the output still imports into the editor.
 
 Build and test this first, against both real flows (18 KB / 15 nodes, and 151 KB / 226 nodes). If the diffs are not readable by a human reviewer, the whole Git-as-source-of-truth approach fails at this step, and that is cheap to discover in an hour.
+
+## FlowFuse instances
+
+Two servers run their Node-RED under FlowFuse. They are a **migration source**, not a deployment target: FlowFuse gets no transport, no `registry.yml` entry and no pipeline stage. Each instance is exported once, lands in `apps/` as a normalized `flows.json`, comes up as a plain container, and from then on is an instance like any other.
+
+That direction is the same decision the whole architecture rests on. FlowFuse is a control plane that owns the flows, which is the category decision 1 rejected — the reasoning does not change because the control plane is a good one.
+
+The migration hinges on one fact the inventory has to establish rather than assume: **where the authoritative flow actually lives.** If FlowFuse keeps it in its platform and `/data/flows.json` is a cache or absent, the export runs against FlowFuse, not against the filesystem. `collect-inventory.py` reports the storage module in use, every `flows*.json` on disk, and the `FORGE_*` environment (token values masked) for exactly this reason.
+
+Two costs to expect, both to be confirmed against the report rather than assumed:
+
+- **Credentials do not travel.** FlowFuse encrypts them with a key it manages. If that key cannot be exported, every credential in a migrated flow is re-entered once in the new instance — a manual step per instance, worth planning for rather than discovering mid-cutover.
+- **Palette is FlowFuse-managed.** Whatever it installs per project becomes that app's `apps/<app>/package.json`, which the image then bakes.
+
+Sequencing: migrate a plain-container pair first. It proves normalize → commit → deploy end to end against the simpler case, and the FlowFuse cutover then only adds the export step to a path that already works.
 
 ## Visibility
 

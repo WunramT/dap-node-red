@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Node-RED multi-instance deployment. Git holds the flows, CI deploys them, 16 instances across 8 site servers (dev and prod on each).
+Node-RED multi-instance deployment. Git holds the flows, CI deploys them, up to 16 instances across 8 site servers (dev and prod on each). Two of those servers still run their instances under FlowFuse and are migrated to plain containers as part of this project.
 
 Read before working:
 

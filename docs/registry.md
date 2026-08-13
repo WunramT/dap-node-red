@@ -54,4 +54,6 @@ Two substitution mechanisms, deliberately different in scope:
 
 ## Scope
 
-16 entries: 8 site servers, each with a dev and a prod instance. The host names come from the map in the `Jenkinsfile`; `discover-gaps.sh` confirms the instance names per host.
+Up to 16 entries: 8 site servers, each with a dev and a prod instance. The host names come from the map in the `Jenkinsfile`; `collect-inventory.py` confirms the instance names per host and writes a pre-filled draft.
+
+Instances still running under FlowFuse are **not** entries yet. They join the registry once they have been migrated to plain containers (decision 12); until then the draft carries them as a comment, so the file records that they exist without claiming the pipeline can deploy them.
