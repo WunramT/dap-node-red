@@ -57,7 +57,11 @@ validate:registry:
   script:
     # --draft while image tags and Jenkins credential ids are still placeholders.
     # Drop the flag once they are filled in; the job then fails on any CHANGEME.
-    - python3 scripts/validate-registry.py --draft
+    - python3 scripts/validate-registry.py --draft --emit-json
+  artifacts:
+    # Jenkins ships this to the target host with deploy.py — see decision 10.
+    paths: [registry.json]
+    expire_in: 30 days
   rules:
     - changes:
         - registry.yml
@@ -69,14 +73,15 @@ validate:normalize:
   image: python:3.13-slim
   script:
     - python3 scripts/test_normalize.py
+    - python3 scripts/test_deploy.py
     # No apps/ yet — the glob matches nothing and the job passes until there is
     # something to check. Once apps/ exists this fails on any un-normalized flow.
     - 'shopt -s nullglob; files=(apps/*/flows.json); [ ${#files[@]} -eq 0 ] || python3 scripts/normalize.py --check "${files[@]}"'
   rules:
     - changes:
         - apps/**/*
-        - scripts/normalize.py
-        - scripts/test_normalize.py
+        - registry.yml
+        - scripts/*.py
 
 # Still to come (see docs/open-questions.md):
 #

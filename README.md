@@ -24,8 +24,9 @@ Two transports, both versioned:
 | `registry.yml` + schema + validator | done — values measured, image tags and credential ids pending |
 | `normalize.py` + tests | done — validated against all 11 real flows |
 | `apps/*/flows.json` | done — 11 apps, normalized |
-| `apps/*/package.json` + `Dockerfile` | pending — run `scaffold-apps.py` where `inventory/` lives |
-| `deploy.py`, `drift-check.py` | not built |
+| `apps/*/package.json` + `Dockerfile` | done — 11 apps, palette versions as installed |
+| `deploy.py` + tests | done — pending a run against a real instance |
+| `drift-check.py` | not built |
 | `Jenkinsfile` | still the template's; holds the host map the new pipeline needs |
 
 ```bash
@@ -35,6 +36,8 @@ python3 scripts/validate-registry.py --draft      # registry against the schema
 python3 scripts/test_normalize.py                 # normalizer properties
 python3 scripts/normalize.py --check apps/*/flows.json
 python3 scripts/scaffold-apps.py                  # samples/ -> apps/
+python3 scripts/test_deploy.py                    # deploy against a stub Admin API
+python3 scripts/deploy.py --instance wag-prod --dry-run
 
 # Re-inventory the hosts (read-only; credentials in a gitignored hosts.local.json)
 python3 scripts/collect-inventory.py

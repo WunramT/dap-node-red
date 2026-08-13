@@ -22,6 +22,9 @@ scripts/*.local.py
 hosts.local.json
 inventory/
 registry.draft.yml
+# Generated from registry.yml by validate-registry.py --emit-json, for hosts
+# without PyYAML. Committing it would be the same data in two places.
+registry.json
 
 # Node-RED runtime state — never committed.
 # flows_cred.json and .config.runtime.json hold encrypted credentials and the

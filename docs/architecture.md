@@ -65,7 +65,7 @@ docs/             this directory
 INVENTORY.md      inventory output, secrets stripped
 ```
 
-One artifact per app; env vars parameterize it for N instances. A flow file in the repo always opens in the editor unchanged — that is what keeps the return path from editor to Git alive.
+One app, one instance — no two instances share a flow. A flow file in the repo always opens in the editor unchanged, which is what keeps the return path from editor to Git alive.
 
 ## Flow deploy sequence
 
@@ -79,11 +79,14 @@ SSH is a transport for the script, never a path for writing flow files. The `rev
 
 1. `POST <admin_root>/auth/token` → Bearer token. `adminAuth` is active on 12 of 13, so nearly every call needs one. `wfm` has it switched off and answers `200` unauthenticated — `deploy.py` skips the token call where `auth_credential_id` has nothing behind it, and that is a gap to close, not a feature.
 2. `GET <admin_root>/flows` → capture `rev`.
-3. Render env vars. Optional Jinja2 pass **only** for composite strings such as `mqtt-${SITE}/events`, on a copy — Node-RED's own `${ENV}` substitution replaces whole properties only, so composites need help.
-4. `POST <admin_root>/flows` with header `Node-RED-Deployment-Type: flows` and the captured `rev`.
-5. `409` → abort. The running flow diverged from Git; that must surface as a red pipeline, never be flattened.
+3. `POST <admin_root>/flows` with header `Node-RED-Deployment-Type: flows` and the captured `rev`.
+4. `409` → abort. The running flow diverged from Git; that must surface as a red pipeline, never be flattened.
 
-`--dry-run` prints the normalized diff and exits 0. `--instance <name>` targets one instance for a hotfix.
+There is no render step between the `GET` and the `POST`: no app is shared, so no flow has to vary per instance (decision 14). The committed flow is what gets posted.
+
+`--dry-run` prints the normalized diff and exits 0. `--instance <name>` targets one instance, `--all` every instance with an app. Standard library only — the site hosts are not guaranteed to have pip.
+
+`registry.yml` is YAML and PyYAML may be absent on a host, so CI emits `registry.json` and Jenkins ships it alongside the script. Hand-parsing YAML on the host was the alternative, and a parser wrong in one edge case deploys the wrong flow to the wrong instance.
 
 `admin_root` is per-instance and was probed rather than parsed: 8 instances answer on `/node-red-prod` or `/node-red-test`, and 5 — `gor-prod`, `gor-test`, `jan-prod`, `jan-test`, `wfm` — have no admin root at all and answer on plain `/flows`. In `registry.yml` those carry `admin_root: ""`.
 

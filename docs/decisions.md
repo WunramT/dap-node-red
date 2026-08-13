@@ -13,7 +13,7 @@ The alternative was a database-backed control plane (the *DAP Node-RED Managemen
 - SSH file writes with no `rev` check silently overwrite hand edits
 - a container restart on every flow deploy opens an MQTT ingest gap, daily
 
-Harvested from that concept and kept: the manifest shape (`global_variables` + per-instance `variables` → `registry.yml`), a narrow Jinja2 render step for composite strings only, the `setup_server.sh` bootstrap idea, and `--dry-run`.
+Harvested from that concept and kept: the manifest shape (`global_variables` + per-instance `variables` → `registry.yml`), the `setup_server.sh` bootstrap idea, and `--dry-run`. Its narrow Jinja2 render step turned out to have no job here — decision 14.
 
 Its port-allocation logic is not needed. Ports are already allocated, if inconsistently — 6 instances publish one, 7 do not — and nothing in this design adds an instance, so there is nothing to allocate.
 
@@ -41,7 +41,7 @@ npm modules cannot be installed through the Admin API. Palette changes rebuild `
 
 No placeholders, no template syntax in a committed `flows.json`. Rendering happens in CI, on a copy. The moment a committed flow stops opening in the editor, the editor→Git return path dies and manual deployment comes back.
 
-Node-RED's `${ENV}` substitution replaces a whole property value. Composite strings (`mqtt-${SITE}/events`) need the Jinja2 pass — which is exactly why it exists and exactly why it stays that narrow.
+Node-RED's `${ENV}` substitution replaces a whole property value, and it runs inside the instance, so a committed flow containing `${MQTT_BROKER_HOST}` still opens in the editor. Composite strings would need more, but no app is shared, so none of them has to vary — decision 14.
 
 ## 7. Secrets come from Jenkins credentials only — Closed
 
@@ -91,4 +91,14 @@ The 13 plain instances configure the same thing. Nine groups by literal text col
 So the repository holds **one** `settings.js`, with the genuinely per-instance values — `httpAdminRoot`, `dns_search`, `adminAuth`, `credentialSecret` — supplied per instance rather than forked into 13 files.
 
 Every change to `settings.js` restarts the container, so they are batched: the backup gate, the `credentialSecret` pin and these two fixes are one edit and one restart per instance, not three. Procedure: [`runbook.md`](runbook.md).
+
+## 14. No render step, because nothing is shared — Closed
+
+`deploy.py` posts the committed flow as it stands. There is no env-var substitution pass and no Jinja2 pass.
+
+The render step existed to parameterize one artifact for N instances, and the inventory established that N is always 1: no two instances share a flow, so every app deploys to exactly one instance and there is nothing to vary. A composite string like `mqtt-${SITE}/events` can simply hold its literal value, which is also what keeps the flow openable in the editor (decision 6).
+
+Node-RED's own `${ENV}` substitution still works at runtime for whole property values, fed by `variables` in `registry.yml` through the container environment. That path costs nothing and stays.
+
+If instances ever do share an app, the Jinja2 pass comes back — on a copy, in CI, for composite strings only. Until then it would be a moving part with no job.
 

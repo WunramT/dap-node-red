@@ -71,6 +71,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--draft", action="store_true",
                     help="allow CHANGEME placeholders; use while the registry is being filled in")
+    ap.add_argument("--emit-json", action="store_true",
+                    help="also write registry.json, which deploy.py reads on hosts without PyYAML")
     args = ap.parse_args()
 
     registry = yaml.safe_load(REGISTRY.read_text(encoding="utf-8"))
@@ -88,6 +90,11 @@ def main() -> int:
         for e in errors:
             print(f"  - {e}", file=sys.stderr)
         return 1
+
+    if args.emit_json:
+        (ROOT / "registry.json").write_text(
+            json.dumps(registry, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"wrote {ROOT / 'registry.json'}")
 
     n = len(registry.get("instances", []))
     print(f"registry.yml OK — {n} instances"

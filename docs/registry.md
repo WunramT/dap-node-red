@@ -45,10 +45,9 @@ instances:
 
 `global_variables`, then `variables` on top. The merged map becomes the container's environment and the substitution source for the flow render.
 
-Two substitution mechanisms, deliberately different in scope:
+The merged map reaches the flow one way only: **Node-RED's own `${ENV}` substitution**, which resolves whole property values inside the running instance. A committed flow containing `${MQTT_BROKER_HOST}` therefore still opens in the editor.
 
-- **Node-RED `${ENV}`** — replaces a whole property value. Used wherever it suffices.
-- **Jinja2 in CI** — for composite strings only (`mqtt-${SITE}/events`), applied to a copy during deploy. The committed flow keeps its literal value so it still opens in the editor.
+`deploy.py` renders nothing. No app is shared, so no flow has to vary per instance — see decision 14 in [`decisions.md`](decisions.md).
 
 ## Base URL
 
