@@ -43,9 +43,9 @@ instances:
 
 ## Variable resolution
 
-`global_variables`, then `variables` on top. The merged map becomes the container's environment and the substitution source for the flow render.
+`global_variables`, then `variables` on top. The merged map becomes the container's environment.
 
-The merged map reaches the flow one way only: **Node-RED's own `${ENV}` substitution**, which resolves whole property values inside the running instance. A committed flow containing `${MQTT_BROKER_HOST}` therefore still opens in the editor.
+It reaches the flow one way only: **Node-RED's own `${ENV}` substitution**, which resolves whole property values inside the running instance. A committed flow containing `${MQTT_BROKER_HOST}` therefore still opens in the editor.
 
 `deploy.py` renders nothing. No app is shared, so no flow has to vary per instance — see decision 14 in [`decisions.md`](decisions.md).
 
