@@ -3,8 +3,12 @@
 # Every admin_root below was probed, not parsed — it is the path the running
 # instance answers 401 on. Node-RED versions are the versions actually running.
 #
-# Two values are not yet known and are marked CHANGEME:
-#   - image_tag             waits on the Harbor project (open question 4)
+# image_tag pins each instance to the Node-RED version it already runs, so the
+# pin itself changes nothing but the drift. The -N suffix is the palette build:
+# bump it when apps/<app>/package.json changes. Converging the estate on one
+# Node-RED version is a separate upgrade — see docs/architecture.md.
+#
+# Still marked CHANGEME:
 #   - *_credential_id       waits on the Jenkins credentials being created
 #
 # credential_secret_id refers to a credential holding the instance's EXISTING
@@ -26,7 +30,7 @@ instances:
     auth_credential_id: nodered-cho-prod-auth
     credential_secret_id: nodered-cho-prod-credsecret
     dns_search: [cho.polipol.intra, rah.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.5, 68 nodes, no palette
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/cho-prod:4.0.5-1  # running node-red 4.0.5, 68 nodes, no palette
     variables: {}
 
   - name: cho-test
@@ -37,7 +41,7 @@ instances:
     auth_credential_id: nodered-cho-test-auth
     credential_secret_id: nodered-cho-test-credsecret
     dns_search: [cho.polipol.intra, rah.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.5, 6 nodes, no palette
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/cho-test:4.0.5-1  # running node-red 4.0.5, 6 nodes, no palette
     variables: {}
 
   # --- gor-svr-lin01 --------------------------------------------------------
@@ -49,7 +53,7 @@ instances:
     auth_credential_id: nodered-gor-prod-auth
     credential_secret_id: nodered-gor-prod-credsecret
     dns_search: []
-    image_tag: CHANGEME  # running node-red 4.0.5, 94 nodes, 7 palette modules
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/gor-prod:4.0.5-1  # running node-red 4.0.5, 94 nodes, 7 palette modules
     variables: {}
 
   - name: gor-test
@@ -60,7 +64,7 @@ instances:
     auth_credential_id: nodered-gor-test-auth
     credential_secret_id: nodered-gor-test-credsecret
     dns_search: []
-    image_tag: CHANGEME  # running node-red 4.0.5, 132 nodes, 2 palette modules
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/gor-test:4.0.5-1  # running node-red 4.0.5, 132 nodes, 2 palette modules
     variables: {}
 
   # --- jan-svr-lin01 --------------------------------------------------------
@@ -74,7 +78,7 @@ instances:
     dns_search: [cho.polipol.intra, rah.polipol.intra, pod.polipol.intra, jan.polipol.intra,
                  srem.polipol.intra, foi.polipol.intra, wag.polipol.intra, sul.polipol.intra,
                  slu.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.9, 42 nodes, no palette
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/jan-prod:4.0.9-1  # running node-red 4.0.9, 42 nodes, no palette
     variables: {}
 
   - name: jan-test
@@ -87,7 +91,7 @@ instances:
     dns_search: [cho.polipol.intra, rah.polipol.intra, pod.polipol.intra, jan.polipol.intra,
                  srem.polipol.intra, foi.polipol.intra, wag.polipol.intra, sul.polipol.intra,
                  slu.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.9, 146 nodes, 2 palette modules
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/jan-test:4.0.9-1  # running node-red 4.0.9, 146 nodes, 2 palette modules
     variables: {}
 
   # --- slu-svr-lin02 --------------------------------------------------------
@@ -102,7 +106,7 @@ instances:
     auth_credential_id: nodered-slu-prod-auth
     credential_secret_id: nodered-slu-prod-credsecret
     dns_search: [rah.polipol.intra, slu.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.9, empty
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/slu-prod:4.0.9-1  # running node-red 4.0.9, empty
     variables: {}
 
   - name: slu-test
@@ -113,7 +117,7 @@ instances:
     auth_credential_id: nodered-slu-test-auth
     credential_secret_id: nodered-slu-test-credsecret
     dns_search: [rah.polipol.intra, slu.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.9, empty
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/slu-test:4.0.9-1  # running node-red 4.0.9, empty
     variables: {}
 
   # --- srem-svr-lin01 -------------------------------------------------------
@@ -125,7 +129,7 @@ instances:
     auth_credential_id: nodered-srem-prod-auth
     credential_secret_id: nodered-srem-prod-credsecret
     dns_search: [rah.polipol.intra, srem.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.9, 205 nodes / 40 types — largest
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/srem-prod:4.0.9-1  # running node-red 4.0.9, 205 nodes / 40 types — largest
     variables: {}
 
   - name: srem-test
@@ -136,7 +140,7 @@ instances:
     auth_credential_id: nodered-srem-test-auth
     credential_secret_id: nodered-srem-test-credsecret
     dns_search: [rah.polipol.intra, srem.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.9, 79 nodes, 7 palette modules
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/srem-test:4.0.9-1  # running node-red 4.0.9, 79 nodes, 7 palette modules
     variables: {}
 
   # --- wag-svr-lin01 --------------------------------------------------------
@@ -148,7 +152,7 @@ instances:
     auth_credential_id: nodered-wag-prod-auth
     credential_secret_id: nodered-wag-prod-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
-    image_tag: CHANGEME  # running node-red 5.0.1, 15 nodes, no palette
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/wag-prod:5.0.1-1  # running node-red 5.0.1, 15 nodes, no palette
     variables: {}
 
   - name: wag-test
@@ -159,7 +163,7 @@ instances:
     auth_credential_id: nodered-wag-test-auth
     credential_secret_id: nodered-wag-test-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
-    image_tag: CHANGEME  # running node-red 5.0.1, 222 nodes, 2 palette modules
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/wag-test:5.0.1-1  # running node-red 5.0.1, 222 nodes, 2 palette modules
     variables: {}
 
   # --- wfm-svr-lin01 --------------------------------------------------------
@@ -174,7 +178,7 @@ instances:
     auth_credential_id: nodered-wfm-auth
     credential_secret_id: nodered-wfm-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
-    image_tag: CHANGEME  # running node-red 4.0.9, 19 nodes, node-red-contrib-opcua
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/wfm:4.0.9-1  # running node-red 4.0.9, 19 nodes, node-red-contrib-opcua
     variables: {}
 
   # --- Not in the registry yet ----------------------------------------------

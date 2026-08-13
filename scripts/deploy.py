@@ -101,6 +101,23 @@ def env_credentials(credential_id: str) -> tuple[str, str] | None:
 # Admin API
 # --------------------------------------------------------------------------
 
+def resolve_base(base: str, admin_root: str) -> str:
+    """The base URL, with the admin root removed if it was pasted in.
+
+    NODE_RED_BASE_URL is the host, and the admin root comes from registry.yml —
+    but the URL a human has in their browser is the two already joined, so
+    pasting that is the obvious mistake and doubling the root yields a 404 that
+    explains nothing.
+    """
+    base = base.rstrip("/")
+    if admin_root and base.endswith(admin_root):
+        stripped = base[: -len(admin_root)]
+        print(f"note: NODE_RED_BASE_URL already ends in {admin_root!r}, which "
+              f"registry.yml supplies — using {stripped}")
+        return stripped
+    return base
+
+
 def request(url: str, *, method="GET", body=None, token=None, headers=None):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method)
@@ -115,9 +132,24 @@ def request(url: str, *, method="GET", body=None, token=None, headers=None):
     for k, v in (headers or {}).items():
         req.add_header(k, v)
 
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
-        payload = response.read()
-        return response.status, (json.loads(payload) if payload else None)
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
+            payload = response.read()
+            return response.status, (json.loads(payload) if payload else None)
+    except urllib.error.HTTPError as exc:
+        # 409 is a real answer the caller handles; everything else is reported
+        # with the URL, because a bare status tells nobody what was called.
+        if exc.code == 409:
+            raise
+        raise SystemExit(
+            f"{method} {url} -> {exc.code} {exc.reason}\n"
+            + {401: "  The credentials were rejected, or adminAuth expects a different user.",
+               404: "  Nothing answers on that path. Check admin_root in registry.yml against "
+                    "the instance, and that NODE_RED_BASE_URL is the host only.",
+               }.get(exc.code, f"  {exc.read()[:300].decode('utf-8', 'replace')}")
+        ) from None
+    except urllib.error.URLError as exc:
+        raise SystemExit(f"{method} {url} -> unreachable: {exc.reason}") from None
 
 
 def get_token(base: str, admin_root: str, user: str, password: str) -> str:
@@ -146,8 +178,12 @@ def deploy(inst: dict, dry_run: bool) -> int:
     flow_file = ROOT / "apps" / app / "flows.json"
     desired = json.loads(flow_file.read_text(encoding="utf-8"))
 
-    base = os.environ.get("NODE_RED_BASE_URL") or container_url(inst["compose_service"])
     admin_root = inst.get("admin_root") or ""
+    base = resolve_base(
+        os.environ.get("NODE_RED_BASE_URL") or container_url(inst["compose_service"]),
+        admin_root,
+    )
+    print(f"{name}: {base}{admin_root}/flows")
 
     token = None
     creds = env_credentials(inst["auth_credential_id"])

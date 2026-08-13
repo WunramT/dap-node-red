@@ -46,13 +46,7 @@ Look for the agent's config (`device.yml` or similar) and for a `credentialSecre
 
 **Unblocks:** the migration procedure for two servers. It blocks nothing on the other eight — those go first regardless (see "Sequencing" in [`architecture.md`](architecture.md)).
 
-### 3. Harbor project for Node-RED images
-
-The existing pipeline pushes to `harbor.aks-infra.polipol-service.de` under `dap-api/` and `dap-ui/`. Node-RED images fit neither. Does a `dap-nodered` project exist, and which GitLab CI variable holds its push credential?
-
-**Unblocks:** `base/Dockerfile`, `apps/*/Dockerfile`, and the 13 `image_tag` values that are `CHANGEME` in `registry.yml`.
-
-### 4. Jenkins credentials for 13 instances
+### 3. Jenkins credentials for 13 instances
 
 `registry.yml` names an `auth_credential_id` and a `credential_secret_id` per instance, and both are `CHANGEME`. They cannot be filled in before the backup gate runs, because `credential_secret_id` must hold each instance's **existing** generated key — see [`runbook.md`](runbook.md).
 
@@ -72,6 +66,7 @@ If prod is genuinely unmigrated, it is the ideal first target — nothing to los
 
 | Question | Answer | Recorded in |
 |---|---|---|
+| Harbor project for the images? | `dap-node-red` exists. Tags are `<registry>/dap-node-red/<app>:<node-red-version>-<palette build>`, filled in for all 13 | `registry.yml` |
 | The two settings.js deviations? | Both normalized to what the others do — `wfm` gets `adminAuth`, `cho-prod` goes back to `level: "info"`. One settings.js in the repo | decision 13 |
 | What is every instance's admin root? | Probed on all 13: 8 on `/node-red-prod` or `/node-red-test`, 5 on plain `/`. All in `registry.yml` | [`architecture.md`](architecture.md) |
 | Which Node-RED versions are running? | Three — 4.0.5, 4.0.9, 5.0.1. Pin each instance to its current version first; converging is a separate upgrade | [`architecture.md`](architecture.md) |

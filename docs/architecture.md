@@ -28,7 +28,7 @@ Git is the source of truth. Two deployment transports, both versioned, neither s
 | What changes | Transport | Frequency | Container restart |
 |---|---|---|---|
 | Flow logic | Node-RED Admin API `POST <admin_root>/flows` | daily | no |
-| Palette modules (npm) | image rebuild + `docker compose up -d <service>` | rare | yes |
+| Palette modules (npm) | image rebuild + `docker compose up -d <compose_service>` | rare | yes |
 
 Splitting them is the point. Flow deploys are frequent, so they must not interrupt MQTT ingest. Palette deploys are rare, so a restart gap is acceptable there.
 
@@ -128,6 +128,16 @@ The compose file differs per host (`code/node-red/`, `energy/`, `Base_Container/
 | `contextStorage` | commented out | memory-only context; a recreate loses nothing but the restart gap |
 | `functionExternalModules` | `true`, zero nodes using it | image baking is a real guarantee only while that stays zero — hence the CI check |
 | compose location | shared `base_container/docker-compose.yml` | service-scoped compose calls until the split lands |
+
+## Image tags
+
+Images live in the Harbor project `dap-node-red`, beside the existing `dap-api` and `dap-ui`. One repository per app:
+
+```
+harbor.aks-infra.polipol-service.de/dap-node-red/<app>:<node-red-version>-<palette build>
+```
+
+`wag-prod:5.0.1-1` reads as "the flow for wag-prod, on Node-RED 5.0.1, first palette build". The version half is the version that instance already runs, so pinning changes nothing but the drift; the suffix increments when `apps/<app>/package.json` changes. Both halves are visible to a human reading `registry.yml`, which a commit SHA would not be.
 
 ## Version spread
 
