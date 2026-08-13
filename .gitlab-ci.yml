@@ -64,9 +64,22 @@ validate:registry:
         - schemas/**/*
         - apps/**/*
 
-# Still to come, once the scripts they call exist (see docs/open-questions.md):
+validate:normalize:
+  stage: Validate
+  image: python:3.13-slim
+  script:
+    - python3 scripts/test_normalize.py
+    # No apps/ yet — the glob matches nothing and the job passes until there is
+    # something to check. Once apps/ exists this fails on any un-normalized flow.
+    - 'shopt -s nullglob; files=(apps/*/flows.json); [ ${#files[@]} -eq 0 ] || python3 scripts/normalize.py --check "${files[@]}"'
+  rules:
+    - changes:
+        - apps/**/*
+        - scripts/normalize.py
+        - scripts/test_normalize.py
+
+# Still to come (see docs/open-questions.md):
 #
-#   validate:normalize  — every apps/*/flows.json equals its normalized form
 #   validate:external   — no function node declares its own npm module,
 #                         which is what keeps the baked image a real guarantee
 #   build:buildah:*     — one image per apps/<app>/Dockerfile

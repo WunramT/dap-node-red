@@ -19,18 +19,25 @@ Two transports, both versioned:
 
 ## Status
 
-Documentation and host discovery only. The scaffold — `normalize.py`, `deploy.py`, `registry.yml`, the app images — is not built yet.
-
-Collect the facts the scaffold needs:
+| | |
+|---|---|
+| `registry.yml` + schema + validator | done — values measured, image tags and credential ids pending |
+| `normalize.py` + tests | done — pending a run against the real flows in `samples/` |
+| `apps/`, `base/`, `deploy.py`, `drift-check.py` | not built |
+| `Jenkinsfile` | still the template's; holds the host map the new pipeline needs |
 
 ```bash
-pip install paramiko
-# credentials go in hosts.local.json — gitignored, see the script's docstring
+pip install -r scripts/requirements.txt
+
+python3 scripts/validate-registry.py --draft      # registry against the schema
+python3 scripts/test_normalize.py                 # normalizer properties
+python3 scripts/normalize.py --check apps/*/flows.json
+
+# Re-inventory the hosts (read-only; credentials in a gitignored hosts.local.json)
 python3 scripts/collect-inventory.py
 ```
 
-Read-only. It writes `inventory/REPORT.md`, a `registry.yml` draft and the real flows into
-`samples/`, and reports the existence of `credentialSecret`, `adminAuth` and any FlowFuse
-token, never their values.
+`collect-inventory.py` reports the existence of `credentialSecret`, `adminAuth` and any
+FlowFuse token, never their values.
 
 The `Jenkinsfile` is still the one inherited from the project template. It holds the host and credential map the new deployment pipeline needs, so it stays until that pipeline replaces it.

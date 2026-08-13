@@ -148,9 +148,20 @@ That makes **11 instances with real flows**, not 13.
 
 ## Normalization
 
-`normalize.py`: strip the positional keys `x`, `y`, `z`; sort nodes by `id`; stable key order; 2-space indent. Idempotent — a second run is a no-op. Round-trip safe — the output still imports into the editor.
+`normalize.py` reorders and reformats. It drops nothing.
 
-Build and test this first, against all 11 real flows in `samples/`, and hardest against `srem-prod` — 205 nodes, 40 node types, 134 KB. If a flow that size does not diff readably for a human reviewer, the whole Git-as-source-of-truth approach fails at this step, and that is cheap to discover in an hour.
+- tabs and subflows keep their existing relative order — the array order of `tab` nodes *is* the tab order in the editor, and no other field carries it
+- every other node follows the tab it belongs to, sorted by `id` within that tab
+- one key order per node: `id`, `type`, `z`, `g`, `name`… then the rest alphabetically, `wires` last
+- 2-space indent, trailing newline, non-ASCII left readable
+
+Idempotent, and order-independent for everything Node-RED may reshuffle on a deploy. That reshuffling is the noise worth removing: an unnormalized `flows.json` diffs against itself after a deploy that changed nothing.
+
+**No key is stripped, and one earlier instruction would have corrupted every flow.** An earlier spec called for dropping `x`, `y` and `z` as "positional keys". `x` and `y` are canvas coordinates; **`z` is the id of the tab or subflow the node belongs to.** Dropping it detaches every node from its tab. `w`/`h` size a group node and `g` is group membership — structure as well.
+
+`x` and `y` stay too, for a different reason: decision 6 requires a committed flow to open in the editor unchanged, and a 205-node flow whose nodes all sit at the origin does not. A node move costs two changed lines, which is cheap next to losing the editor→Git return path.
+
+Test it against all 11 real flows in `samples/`, hardest against `srem-prod` — 205 nodes, 40 node types, 134 KB. If a flow that size does not diff readably for a human reviewer, the whole Git-as-source-of-truth approach fails at this step, and that is cheap to discover in an hour.
 
 ## FlowFuse instances
 
