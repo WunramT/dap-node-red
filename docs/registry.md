@@ -7,21 +7,20 @@ Validated in GitLab CI against `schemas/registry.schema.json`. CI fails on: dupl
 ## Shape
 
 ```yaml
-global_variables:
-  MQTT_BROKER_HOST: mqtt.example.local
+global_variables: {}
 
 instances:
   - name: wag-prod
     host: wag-svr-lin01
     compose_service: node-red-prod
+    compose_file: /home/administrator/base_container/docker-compose.yml
     app: wag-prod
     admin_root: /node-red-prod
     auth_credential_id: nodered-wag-prod-auth
     credential_secret_id: nodered-wag-prod-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
-    image_tag: harbor.aks-infra.polipol-service.de/dap-nodered/node-red-base:5.0.1-1
-    variables:
-      MACHINE_ID: M001
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/wag-prod:5.0.1-1
+    variables: {}
 ```
 
 ## Fields
@@ -30,6 +29,7 @@ instances:
 |---|---|---|
 | `name` | yes | unique instance key across the whole registry, and the `--instance` argument. Host-qualified (`cho-prod`), because the compose service name is not unique — six hosts each run a service called `node-red-prod` |
 | `compose_service` | yes | the service name on that host, for `docker compose up -d <service>` |
+| `compose_file` | yes | absolute path to that host's compose file. Four different paths are in use — `code/node-red/`, `energy/`, `Base_Container/`, `base_container/` — so it cannot be derived and is stored |
 | `host` | yes | server the instance runs on; must appear in the Jenkins host map |
 | `app` | yes | directory under `apps/`, or `null` for a standalone instance whose flow is not shared |
 | `admin_root` | yes | value of `httpAdminRoot`, e.g. `/node-red-prod`. The API base path — the flows endpoint is `<base><admin_root>/flows` |

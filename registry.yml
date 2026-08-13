@@ -25,6 +25,7 @@ instances:
   - name: cho-prod
     host: cho-svr-lin01
     compose_service: node-red-prod
+    compose_file: /home/administrator/code/node-red/docker-compose.yml
     app: cho-prod
     admin_root: /node-red-prod
     auth_credential_id: nodered-cho-prod-auth
@@ -36,6 +37,7 @@ instances:
   - name: cho-test
     host: cho-svr-lin01
     compose_service: node-red-test
+    compose_file: /home/administrator/code/node-red/docker-compose.yml
     app: cho-test
     admin_root: /node-red-test
     auth_credential_id: nodered-cho-test-auth
@@ -48,6 +50,7 @@ instances:
   - name: gor-prod
     host: gor-svr-lin01
     compose_service: node-red-prod
+    compose_file: /home/itadmin/energy/docker-compose.yml
     app: gor-prod
     admin_root: ""
     auth_credential_id: nodered-gor-prod-auth
@@ -59,6 +62,7 @@ instances:
   - name: gor-test
     host: gor-svr-lin01
     compose_service: node-red-test
+    compose_file: /home/itadmin/energy/docker-compose.yml
     app: gor-test
     admin_root: ""
     auth_credential_id: nodered-gor-test-auth
@@ -71,6 +75,7 @@ instances:
   - name: jan-prod
     host: jan-svr-lin01
     compose_service: node-red-prod
+    compose_file: /home/administrator/code/node-red/docker-compose.yml
     app: jan-prod
     admin_root: ""
     auth_credential_id: nodered-jan-prod-auth
@@ -84,6 +89,7 @@ instances:
   - name: jan-test
     host: jan-svr-lin01
     compose_service: node-red-test
+    compose_file: /home/administrator/code/node-red/docker-compose.yml
     app: jan-test
     admin_root: ""
     auth_credential_id: nodered-jan-test-auth
@@ -101,6 +107,7 @@ instances:
   - name: slu-prod
     host: slu-svr-lin02
     compose_service: node-red-prod
+    compose_file: /home/administrator/Base_Container/docker-compose.yml
     app: null
     admin_root: /node-red-prod
     auth_credential_id: nodered-slu-prod-auth
@@ -112,6 +119,7 @@ instances:
   - name: slu-test
     host: slu-svr-lin02
     compose_service: node-red-test
+    compose_file: /home/administrator/Base_Container/docker-compose.yml
     app: null
     admin_root: /node-red-test
     auth_credential_id: nodered-slu-test-auth
@@ -124,6 +132,7 @@ instances:
   - name: srem-prod
     host: srem-svr-lin01
     compose_service: node-red-prod
+    compose_file: /home/administrator/Base_Container/docker-compose.yml
     app: srem-prod
     admin_root: /node-red-prod
     auth_credential_id: nodered-srem-prod-auth
@@ -135,6 +144,7 @@ instances:
   - name: srem-test
     host: srem-svr-lin01
     compose_service: node-red-test
+    compose_file: /home/administrator/Base_Container/docker-compose.yml
     app: srem-test
     admin_root: /node-red-test
     auth_credential_id: nodered-srem-test-auth
@@ -147,6 +157,7 @@ instances:
   - name: wag-prod
     host: wag-svr-lin01
     compose_service: node-red-prod
+    compose_file: /home/administrator/base_container/docker-compose.yml
     app: wag-prod
     admin_root: /node-red-prod
     auth_credential_id: nodered-wag-prod-auth
@@ -158,6 +169,7 @@ instances:
   - name: wag-test
     host: wag-svr-lin01
     compose_service: node-red-test
+    compose_file: /home/administrator/base_container/docker-compose.yml
     app: wag-test
     admin_root: /node-red-test
     auth_credential_id: nodered-wag-test-auth
@@ -173,6 +185,7 @@ instances:
   - name: wfm
     host: wfm-svr-lin01
     compose_service: node-red
+    compose_file: /home/administrator/Base_Container/docker-compose.yml
     app: wfm
     admin_root: ""
     auth_credential_id: nodered-wfm-auth

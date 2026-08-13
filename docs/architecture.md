@@ -103,7 +103,11 @@ Two systems, already wired in this repo, with different reach:
 - image build via the `ci-cd-catalog/buildah` component, signed via `ci-cd-catalog/cosign`
 - existing scan components (semgrep, trivy, hadolint) apply to the new Dockerfiles unchanged
 
-**Jenkins** (`Jenkinsfile`) — deploy only, because it holds the per-host SSH credentials (`<host>_pw`) and the host/IP map, and because it is the only agent with network reach into the sites. Stages: dry-run diff → flow deploy → optional compose recreate for palette changes.
+**Jenkins** (`Jenkinsfile`) — deploy only, because it holds the per-host SSH credentials (`<host>_pw`) and the host map, and because it is the only agent with network reach into the sites.
+
+It reads `registry.yml` rather than repeating it, writes `registry.json`, ships that plus `deploy.py`, `normalize.py` and the one app's `flows.json` to the target host, and runs the deploy there. The Admin API password travels in a `600` env file that is sourced and deleted in the same shell — passing it as an argument would put it in `ps` for anyone on the host. `DRY_RUN` defaults to **on**.
+
+The host map now holds all 10 servers: `wfm-svr-lin01` and `dpn-svr-iot` were missing from the inherited one.
 
 Compose calls are **service-scoped** — `docker compose up -d <compose_service>`, which is why `compose_service` is a registry field. The service name is not the instance name: six hosts each run one called `node-red-prod`.
 
