@@ -1,0 +1,184 @@
+# Instance inventory. Field reference: docs/registry.md
+#
+# Every admin_root below was probed, not parsed — it is the path the running
+# instance answers 401 on. Node-RED versions are the versions actually running.
+#
+# Two values are not yet known and are marked CHANGEME:
+#   - image_tag             waits on the Harbor project (open question 4)
+#   - *_credential_id       waits on the Jenkins credentials being created
+#
+# credential_secret_id refers to a credential holding the instance's EXISTING
+# generated key, read from .config.runtime.json during the backup gate. Pinning
+# to a new value re-encrypts and breaks every stored credential — see
+# docs/runbook.md before creating any of them.
+
+global_variables: {}
+
+instances:
+  # --- cho-svr-lin01 --------------------------------------------------------
+  - name: cho-prod
+    host: cho-svr-lin01
+    compose_service: node-red-prod
+    app: cho-prod
+    admin_root: /node-red-prod
+    auth_credential_id: CHANGEME-nodered-cho-prod-auth
+    credential_secret_id: CHANGEME-nodered-cho-prod-credsecret
+    dns_search: [cho.polipol.intra, rah.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.5, 68 nodes, no palette
+    variables: {}
+
+  # Logs at level "trace" while every other instance logs at "info".
+  # Reconcile before the first deploy — see docs/open-questions.md question 6.
+  - name: cho-test
+    host: cho-svr-lin01
+    compose_service: node-red-test
+    app: cho-test
+    admin_root: /node-red-test
+    auth_credential_id: CHANGEME-nodered-cho-test-auth
+    credential_secret_id: CHANGEME-nodered-cho-test-credsecret
+    dns_search: [cho.polipol.intra, rah.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.5, 6 nodes, no palette
+    variables: {}
+
+  # --- gor-svr-lin01 --------------------------------------------------------
+  - name: gor-prod
+    host: gor-svr-lin01
+    compose_service: node-red-prod
+    app: gor-prod
+    admin_root: ""
+    auth_credential_id: CHANGEME-nodered-gor-prod-auth
+    credential_secret_id: CHANGEME-nodered-gor-prod-credsecret
+    dns_search: []
+    image_tag: CHANGEME  # running node-red 4.0.5, 94 nodes, 7 palette modules
+    variables: {}
+
+  - name: gor-test
+    host: gor-svr-lin01
+    compose_service: node-red-test
+    app: gor-test
+    admin_root: ""
+    auth_credential_id: CHANGEME-nodered-gor-test-auth
+    credential_secret_id: CHANGEME-nodered-gor-test-credsecret
+    dns_search: []
+    image_tag: CHANGEME  # running node-red 4.0.5, 132 nodes, 2 palette modules
+    variables: {}
+
+  # --- jan-svr-lin01 --------------------------------------------------------
+  - name: jan-prod
+    host: jan-svr-lin01
+    compose_service: node-red-prod
+    app: jan-prod
+    admin_root: ""
+    auth_credential_id: CHANGEME-nodered-jan-prod-auth
+    credential_secret_id: CHANGEME-nodered-jan-prod-credsecret
+    dns_search: [cho.polipol.intra, rah.polipol.intra, pod.polipol.intra, jan.polipol.intra,
+                 srem.polipol.intra, foi.polipol.intra, wag.polipol.intra, sul.polipol.intra,
+                 slu.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.9, 42 nodes, no palette
+    variables: {}
+
+  - name: jan-test
+    host: jan-svr-lin01
+    compose_service: node-red-test
+    app: jan-test
+    admin_root: ""
+    auth_credential_id: CHANGEME-nodered-jan-test-auth
+    credential_secret_id: CHANGEME-nodered-jan-test-credsecret
+    dns_search: [cho.polipol.intra, rah.polipol.intra, pod.polipol.intra, jan.polipol.intra,
+                 srem.polipol.intra, foi.polipol.intra, wag.polipol.intra, sul.polipol.intra,
+                 slu.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.9, 146 nodes, 2 palette modules
+    variables: {}
+
+  # --- slu-svr-lin02 --------------------------------------------------------
+  # Both instances hold no flow at all: no flows.json, no flows_cred.json,
+  # /data untouched since Jul 2025. They are empty runtimes, so app is null
+  # until someone decides what they are for.
+  - name: slu-prod
+    host: slu-svr-lin02
+    compose_service: node-red-prod
+    app: null
+    admin_root: /node-red-prod
+    auth_credential_id: CHANGEME-nodered-slu-prod-auth
+    credential_secret_id: CHANGEME-nodered-slu-prod-credsecret
+    dns_search: [rah.polipol.intra, slu.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.9, empty
+    variables: {}
+
+  - name: slu-test
+    host: slu-svr-lin02
+    compose_service: node-red-test
+    app: null
+    admin_root: /node-red-test
+    auth_credential_id: CHANGEME-nodered-slu-test-auth
+    credential_secret_id: CHANGEME-nodered-slu-test-credsecret
+    dns_search: [rah.polipol.intra, slu.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.9, empty
+    variables: {}
+
+  # --- srem-svr-lin01 -------------------------------------------------------
+  - name: srem-prod
+    host: srem-svr-lin01
+    compose_service: node-red-prod
+    app: srem-prod
+    admin_root: /node-red-prod
+    auth_credential_id: CHANGEME-nodered-srem-prod-auth
+    credential_secret_id: CHANGEME-nodered-srem-prod-credsecret
+    dns_search: [rah.polipol.intra, srem.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.9, 205 nodes / 40 types — largest
+    variables: {}
+
+  - name: srem-test
+    host: srem-svr-lin01
+    compose_service: node-red-test
+    app: srem-test
+    admin_root: /node-red-test
+    auth_credential_id: CHANGEME-nodered-srem-test-auth
+    credential_secret_id: CHANGEME-nodered-srem-test-credsecret
+    dns_search: [rah.polipol.intra, srem.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.9, 79 nodes, 7 palette modules
+    variables: {}
+
+  # --- wag-svr-lin01 --------------------------------------------------------
+  - name: wag-prod
+    host: wag-svr-lin01
+    compose_service: node-red-prod
+    app: wag-prod
+    admin_root: /node-red-prod
+    auth_credential_id: CHANGEME-nodered-wag-prod-auth
+    credential_secret_id: CHANGEME-nodered-wag-prod-credsecret
+    dns_search: [rah.polipol.intra, wag.polipol.intra]
+    image_tag: CHANGEME  # running node-red 5.0.1, 15 nodes, no palette
+    variables: {}
+
+  - name: wag-test
+    host: wag-svr-lin01
+    compose_service: node-red-test
+    app: wag-test
+    admin_root: /node-red-test
+    auth_credential_id: CHANGEME-nodered-wag-test-auth
+    credential_secret_id: CHANGEME-nodered-wag-test-credsecret
+    dns_search: [rah.polipol.intra, wag.polipol.intra]
+    image_tag: CHANGEME  # running node-red 5.0.1, 222 nodes, 2 palette modules
+    variables: {}
+
+  # --- wfm-svr-lin01 --------------------------------------------------------
+  # adminAuth is off: the probe returned 200, not 401. Editor and Admin API are
+  # open to anyone who can reach the container, and it publishes 1880 on the
+  # host. auth_credential_id stays CHANGEME until adminAuth is switched on;
+  # deploy.py has nothing to authenticate against until then.
+  - name: wfm
+    host: wfm-svr-lin01
+    compose_service: node-red
+    app: wfm
+    admin_root: ""
+    auth_credential_id: CHANGEME-nodered-wfm-auth
+    credential_secret_id: CHANGEME-nodered-wfm-credsecret
+    dns_search: [rah.polipol.intra, wag.polipol.intra]
+    image_tag: CHANGEME  # running node-red 4.0.9, 19 nodes, node-red-contrib-opcua
+    variables: {}
+
+  # --- Not in the registry yet ----------------------------------------------
+  # pod-svr-lin01 and dpn-svr-iot run flowfuse/device-agent. They join once
+  # migrated to plain containers — decision 12. Their flow is already on disk
+  # at /opt/flowfuse-device/project/flows.json.

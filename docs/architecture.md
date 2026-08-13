@@ -53,7 +53,7 @@ apps/<app-name>/
   flows.json      normalized, editor-valid, no placeholders
   package.json    palette dependencies for this app
   Dockerfile      FROM base, COPY package.json, npm install
-base/Dockerfile   pinned nodered/node-red:5.0.1-<variant>
+base/Dockerfile   pinned nodered/node-red:<version> — see Version spread
 compose/          per-instance compose fragments
 registry.yml      instance inventory — see registry.md
 schemas/          JSON Schema for registry.yml
@@ -69,13 +69,15 @@ One artifact per app; env vars parameterize it for N instances. A flow file in t
 
 ## Flow deploy sequence
 
-`deploy.py` runs **on the target host**, not on the Jenkins agent. Jenkins ships it over the existing SSH hop and executes it there; from the host it reaches the instance by container IP on `app_network`. No instance publishes a port, and the site servers sit in separate subnets, so a central agent cannot reach a container directly — the host can.
+`deploy.py` runs **on the target host**, not on the Jenkins agent. Jenkins ships it over the existing SSH hop and executes it there; from the host it reaches the instance by container IP, which the collector confirmed answers `401` on all 13.
+
+Running on the host is what makes one code path work everywhere. Port publishing is inconsistent — `cho`, `gor`, `jan` and `wfm` publish 1880/1881, `slu-test` 1882, while `wag`, `srem` and `slu-prod` publish nothing — and the site servers sit in separate subnets, so a central agent would reach some instances and not others.
 
 SSH is a transport for the script, never a path for writing flow files. The `rev` handshake and the no-restart property are exactly what the Admin API is here for.
 
 `scripts/deploy.py`, one instance at a time:
 
-1. `POST <admin_root>/auth/token` → Bearer token. `adminAuth` is active on every instance (`type: credentials`, bcrypt), so every call needs one.
+1. `POST <admin_root>/auth/token` → Bearer token. `adminAuth` is active on 12 of 13, so nearly every call needs one. `wfm` has it switched off and answers `200` unauthenticated — `deploy.py` skips the token call where `auth_credential_id` has nothing behind it, and that is a gap to close, not a feature.
 2. `GET <admin_root>/flows` → capture `rev`.
 3. Render env vars. Optional Jinja2 pass **only** for composite strings such as `mqtt-${SITE}/events`, on a copy — Node-RED's own `${ENV}` substitution replaces whole properties only, so composites need help.
 4. `POST <admin_root>/flows` with header `Node-RED-Deployment-Type: flows` and the captured `rev`.
@@ -83,7 +85,9 @@ SSH is a transport for the script, never a path for writing flow files. The `rev
 
 `--dry-run` prints the normalized diff and exits 0. `--instance <name>` targets one instance for a hotfix.
 
-`admin_root` is per-instance (`/node-red-prod`, `/node-red-test`), so the API lives at `<base><admin_root>/flows` — never at `/flows`.
+`admin_root` is per-instance and was probed rather than parsed: 8 instances answer on `/node-red-prod` or `/node-red-test`, and 5 — `gor-prod`, `gor-test`, `jan-prod`, `jan-test`, `wfm` — have no admin root at all and answer on plain `/flows`. In `registry.yml` those carry `admin_root: ""`.
+
+Parsing `settings.js` for this field is a trap: Node-RED ships every option present but commented out, so a naive read reports the template's `/admin` default as configured. All five of those instances did, and all five returned `404`.
 
 ## CI split
 
@@ -98,33 +102,55 @@ Two systems, already wired in this repo, with different reach:
 
 **Jenkins** (`Jenkinsfile`) — deploy only, because it holds the per-host SSH credentials (`<host>_pw`) and the host/IP map, and because it is the only agent with network reach into the sites. Stages: dry-run diff → flow deploy → optional compose recreate for palette changes.
 
-Compose calls are **service-scoped** — `docker compose up -d node-red-prod`. A bare `docker compose up -d` would recreate NATS and the other services that share `/home/administrator/base_container/docker-compose.yml`. Task: move the Node-RED services into their own compose project so that risk disappears structurally rather than by discipline (~1h, see [`runbook.md`](runbook.md)).
+Compose calls are **service-scoped** — `docker compose up -d <compose_service>`, which is why `compose_service` is a registry field. The service name is not the instance name: six hosts each run one called `node-red-prod`.
+
+The compose file differs per host (`code/node-red/`, `energy/`, `Base_Container/`, `base_container/`), and the neighbour probe found no non-Node-RED service in any of those projects. That contradicts the earlier report that NATS shares `wag`'s file, so treat it as unconfirmed rather than settled — one `docker compose -f <file> config --services` per host closes it. Service-scoped calls cost nothing and hold either way.
 
 ## Measured environment facts
 
-Inventory ran on `wag-svr-lin01`, both containers. These are measured, not assumed.
+`scripts/collect-inventory.py` visited all 10 hosts. These are measured, not assumed.
 
-That host was rebuilt in the week before the inventory, which makes it the current baseline rather than a box being decommissioned — and makes `node-red-prod`'s 15 nodes worth a second look. A freshly rebuilt host whose prod instance holds 15 nodes and no palette modules, while its test instance holds 226 nodes and two palette modules, reads more like a prod instance that has not been migrated back yet than like a small production application.
+`wag-svr-lin01` was rebuilt shortly before the inventory, which explains both its 5.0.1 runtime and its `node-red-prod` holding only 15 nodes while `node-red-test` holds 222 — that reads more like a prod instance not yet migrated back after the rebuild than like a small production application.
 
 | Fact | Value | Consequence |
 |---|---|---|
-| Node-RED version | 5.0.1 | subflow modules, global env vars, `nodeDefaults` all available — no version-gated compromises |
+| Node-RED versions | **4.0.5, 4.0.9, 5.0.1** | only `wag` runs 5.0.1; 11 of 13 are on 4.x. Pinning is not one tag — see "Version spread" below |
 | Image tag in use | `nodered/node-red:latest` | must be pinned; `latest` + `restart: always` drifts silently per host |
 | `credentialSecret` | commented out | generated key exists only in `/data/.config.runtime.json`; single copy, in no backup |
 | `flows_cred.json` | present on both | real credentials in use; undecryptable without that key file |
-| `httpAdminRoot` | `/node-red-prod`, `/node-red-test` | API base path is per-instance |
-| `adminAuth` | active, bcrypt | token call required before every API call |
+| `httpAdminRoot` | 8 instances on `/node-red-prod` or `/node-red-test`, 5 on `/` | probed, not parsed; API base path is per-instance and 5 instances have none |
+| `adminAuth` | active on 12, **off on `wfm`** | token call required before every API call — except `wfm`, which answers 200 and has nothing to authenticate against |
 | published ports | **mixed** | `cho`, `gor`, `jan` publish 1880/1881, `slu-test` 1882, `wfm` 1880; `wag`, `srem` and `slu-prod` publish nothing. Not a uniform property, so the deploy path cannot rely on one |
 | `flowFilePretty` | `true` | flows already multi-line; the normalizer strips and sorts, it does not reformat |
 | `contextStorage` | commented out | memory-only context; a recreate loses nothing but the restart gap |
 | `functionExternalModules` | `true`, zero nodes using it | image baking is a real guarantee only while that stays zero — hence the CI check |
 | compose location | shared `base_container/docker-compose.yml` | service-scoped compose calls until the split lands |
 
+## Version spread
+
+The estate runs three Node-RED versions, because every instance pulls `nodered/node-red:latest` and each was first started on a different date:
+
+| Version | Instances |
+|---|---|
+| 4.0.5 | `cho-prod`, `cho-test`, `gor-prod`, `gor-test` |
+| 4.0.9 | `jan-prod`, `jan-test`, `slu-prod`, `slu-test`, `srem-prod`, `srem-test`, `wfm` |
+| 5.0.1 | `wag-prod`, `wag-test` |
+
+Pinning (decision 5) is therefore not one tag for everything. Pin each instance to **the version it is already running**, so the pin changes nothing except the drift. Converging on one version is an upgrade — 11 instances crossing a major boundary — and it belongs in its own change, after the pipeline exists and can roll one instance at a time.
+
+That also explains group 3 in the settings.js comparison: `wag`'s file carries `telemetry` and `globalFunctionTimeout` blocks because 5.0.1 generated it, not because anyone edited it.
+
+## Empty instances
+
+`slu-prod` and `slu-test` hold no flow at all — no `flows.json`, no `flows_cred.json`, `/data` untouched since July 2025. They are running containers with nothing in them. They carry `app: null` in `registry.yml` and get no `apps/` directory until someone decides what they are for.
+
+That makes **11 instances with real flows**, not 13.
+
 ## Normalization
 
 `normalize.py`: strip the positional keys `x`, `y`, `z`; sort nodes by `id`; stable key order; 2-space indent. Idempotent — a second run is a no-op. Round-trip safe — the output still imports into the editor.
 
-Build and test this first, against both real flows (18 KB / 15 nodes, and 151 KB / 226 nodes). If the diffs are not readable by a human reviewer, the whole Git-as-source-of-truth approach fails at this step, and that is cheap to discover in an hour.
+Build and test this first, against all 11 real flows in `samples/`, and hardest against `srem-prod` — 205 nodes, 40 node types, 134 KB. If a flow that size does not diff readably for a human reviewer, the whole Git-as-source-of-truth approach fails at this step, and that is cheap to discover in an hour.
 
 ## FlowFuse instances
 
@@ -145,7 +171,7 @@ Sequencing: migrate a plain-container pair first. It proves normalize → commit
 
 ## Visibility
 
-There is no way to see, today, what is actually running on 16 instances. That gap is real and worth closing — as a **report**, not a control plane.
+There is no way to see, today, what is actually running on 15 runtimes across 10 servers. That gap is real and worth closing — as a **report**, not a control plane.
 
 `drift-check.py` sweeps every instance, normalizes what it gets, diffs against Git, and emits JSON. CI renders that JSON into a static HTML page and publishes it. It answers the questions that matter — which instances match Git, which drifted, which flow version and image tag each one runs, when it was last deployed — and it answers them from Git plus a read-only sweep.
 

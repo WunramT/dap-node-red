@@ -49,9 +49,23 @@ scan:hadolint:
   rules:
     - when: always
 
+validate:registry:
+  stage: Validate
+  image: python:3.13-slim
+  before_script:
+    - pip install --no-cache-dir -r scripts/requirements.txt
+  script:
+    # --draft while image tags and Jenkins credential ids are still placeholders.
+    # Drop the flag once they are filled in; the job then fails on any CHANGEME.
+    - python3 scripts/validate-registry.py --draft
+  rules:
+    - changes:
+        - registry.yml
+        - schemas/**/*
+        - apps/**/*
+
 # Still to come, once the scripts they call exist (see docs/open-questions.md):
 #
-#   validate:registry   — registry.yml against schemas/registry.schema.json
 #   validate:normalize  — every apps/*/flows.json equals its normalized form
 #   validate:external   — no function node declares its own npm module,
 #                         which is what keeps the baked image a real guarantee
