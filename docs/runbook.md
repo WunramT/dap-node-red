@@ -78,11 +78,30 @@ Either way, every compose call names its service — `docker compose up -d <comp
 ## Flow deploy
 
 ```
-python scripts/deploy.py --instance <name> --dry-run   # prints the normalized diff, exits 0
-python scripts/deploy.py --instance <name>
+python3 scripts/deploy.py --instance <name> --dry-run   # prints the normalized diff, exits 0
+python3 scripts/deploy.py --instance <name>
 ```
 
 Sequence and the `rev` handshake: [`architecture.md`](architecture.md).
+
+### Reaching an instance from a workstation
+
+The pipeline runs `deploy.py` on the target host, where every instance is at `http://<container-ip>:1880` and the script finds it through Docker. From a workstation there is no single answer, which is why decision 10 exists — but during bring-up it is useful, so set `NODE_RED_BASE_URL` to the **host only**. The script appends `admin_root` from `registry.yml`; passing the URL you have open in the browser doubles it.
+
+| Instance | From a workstation |
+|---|---|
+| `wag-prod`, `wag-test` | `http://wag-svr-lin01` — nginx routes the admin root |
+| `cho-prod` | `http://cho-svr-lin01:1880` |
+| `cho-test` | `http://cho-svr-lin01:1881` |
+| `gor-prod` | `http://gor-svr-lin01:1881` |
+| `gor-test` | `http://gor-svr-lin01:1880` |
+| `jan-prod` | `http://jan-svr-lin01:1880` |
+| `jan-test` | `http://jan-svr-lin01:1881` |
+| `slu-test` | `http://slu-svr-lin02:1882` |
+| `wfm` | `http://wfm-svr-lin01:1880` |
+| `srem-prod`, `srem-test`, `slu-prod` | no published port — run on the host |
+
+On `gor` and `jan` the prod and test ports are the reverse of what the names suggest. The table is a snapshot; `collect-inventory.py` re-derives it, and only the host-side path is what the pipeline depends on.
 
 **On `409`:** the running flow diverged from Git. Someone edited in the browser. Recover the edit rather than discarding it:
 
