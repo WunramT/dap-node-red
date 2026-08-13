@@ -7,6 +7,7 @@ a rev, and a POST that returns 409 when the rev it is given is stale.
 
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -15,6 +16,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "deploy.py"
+
+sys.path.insert(0, str(ROOT / "scripts"))
+from deploy import load_instances, env_credentials  # noqa: E402
 
 FAILED = []
 
@@ -85,30 +89,35 @@ BASE = f"http://127.0.0.1:{server.server_address[1]}"
 
 print("deploy.py")
 
+# --- registry is readable, and the target resolves --------------------------
+instances = load_instances()
+check("registry loads", len(instances) == 13, str(len(instances)))
+check("instance names are unique", len({i["name"] for i in instances}) == 13)
+WAG = wag = next(i for i in instances if i["name"] == "wag-prod")
+check("admin_root read correctly", wag["admin_root"] == "/node-red-prod", wag.get("admin_root"))
+check("empty admin_root stays empty",
+      next(i for i in instances if i["name"] == "wfm")["admin_root"] == "")
+check("credential env naming", env_credentials("nodered-x-auth") is None)
+check("no CHANGEME placeholder survives in the registry",
+      not any("CHANGEME" in str(v) for i in instances for v in i.values()))
+
+
 
 def run(*args, creds=True, base=BASE):
+    """Credential ids come from the registry, never hardcoded here — renaming
+    one in registry.yml is a legitimate change, not a reason for tests to fail."""
     env = {**os.environ, "NODE_RED_BASE_URL": base}
     if creds:
-        env["CHANGEME_NODERED_WAG_PROD_AUTH_USR"] = "admin"
-        env["CHANGEME_NODERED_WAG_PROD_AUTH_PSW"] = "secret"
+        stem = re.sub(r"[^A-Za-z0-9]", "_", WAG["auth_credential_id"]).upper()
+        env[f"{stem}_USR"] = "admin"
+        env[f"{stem}_PSW"] = "secret"
     return subprocess.run([sys.executable, str(SCRIPT), *args],
                           capture_output=True, text=True, env=env, cwd=ROOT)
 
 
 desired = json.loads((ROOT / "apps" / "wag-prod" / "flows.json").read_text(encoding="utf-8"))
 
-# --- registry is readable, and the target resolves --------------------------
-sys.path.insert(0, str(ROOT / "scripts"))
-from deploy import load_instances, env_credentials  # noqa: E402
 
-instances = load_instances()
-check("registry loads", len(instances) == 13, str(len(instances)))
-check("instance names are unique", len({i["name"] for i in instances}) == 13)
-wag = next(i for i in instances if i["name"] == "wag-prod")
-check("admin_root read correctly", wag["admin_root"] == "/node-red-prod", wag.get("admin_root"))
-check("empty admin_root stays empty",
-      next(i for i in instances if i["name"] == "wfm")["admin_root"] == "")
-check("credential env naming", env_credentials("nodered-x-auth") is None)
 
 # --- dry run ----------------------------------------------------------------
 r = run("--instance", "wag-prod", "--dry-run")

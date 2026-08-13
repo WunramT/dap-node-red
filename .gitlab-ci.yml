@@ -55,9 +55,9 @@ validate:registry:
   before_script:
     - pip install --no-cache-dir -r scripts/requirements.txt
   script:
-    # --draft while image tags and Jenkins credential ids are still placeholders.
-    # Drop the flag once they are filled in; the job then fails on any CHANGEME.
-    - python3 scripts/validate-registry.py --draft --emit-json
+    # No --draft: every image tag and credential id is filled in, so a
+    # placeholder reappearing is a mistake and fails the pipeline.
+    - python3 scripts/validate-registry.py --emit-json
   artifacts:
     # Jenkins ships this to the target host with deploy.py — see decision 10.
     paths: [registry.json]

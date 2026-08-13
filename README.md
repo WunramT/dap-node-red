@@ -21,7 +21,7 @@ Two transports, both versioned:
 
 | | |
 |---|---|
-| `registry.yml` + schema + validator | done — values measured, image tags and credential ids pending |
+| `registry.yml` + schema + validator | done — validates clean, no placeholders left |
 | `normalize.py` + tests | done — validated against all 11 real flows |
 | `apps/*/flows.json` | done — 11 apps, normalized |
 | `apps/*/package.json` + `Dockerfile` | done — 11 apps, palette versions as installed |
@@ -32,7 +32,7 @@ Two transports, both versioned:
 ```bash
 pip install -r scripts/requirements.txt
 
-python3 scripts/validate-registry.py --draft      # registry against the schema
+python3 scripts/validate-registry.py              # registry against the schema
 python3 scripts/test_normalize.py                 # normalizer properties
 python3 scripts/normalize.py --check apps/*/flows.json
 python3 scripts/scaffold-apps.py                  # samples/ -> apps/

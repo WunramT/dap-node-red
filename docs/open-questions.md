@@ -16,22 +16,7 @@ It writes `inventory/REPORT.md` (the answers), `registry.draft.yml` and `samples
 
 ## Blocking
 
-### 1. The palette versions, so `apps/` can be finished
-
-`apps/*/flows.json` is in place for all 11 apps. What is missing is each app's `package.json` and `Dockerfile`, because the exact palette versions live in `inventory/<host>.json` — gitignored, and therefore only on the machine that ran the collector.
-
-Run it there, then push:
-
-```bash
-python3 scripts/scaffold-apps.py
-git add apps/ && git commit -m "chore: add app palettes and Dockerfiles" && git push
-```
-
-The Dockerfile and package.json are written together or not at all, so no app carries a Dockerfile that would fail at build time on a missing `COPY`.
-
-**Unblocks:** the image build, and therefore the palette transport.
-
-### 2. The FlowFuse credential key
+### 1. The FlowFuse credential key
 
 Where the flow lives is settled: on disk, at `/opt/flowfuse-device/project/flows.json`, with `flows_cred.json` beside it on both device agents. Extraction is a file copy.
 
@@ -46,17 +31,19 @@ Look for the agent's config (`device.yml` or similar) and for a `credentialSecre
 
 **Unblocks:** the migration procedure for two servers. It blocks nothing on the other eight — those go first regardless (see "Sequencing" in [`architecture.md`](architecture.md)).
 
-### 3. Jenkins credentials for 13 instances
+### 2. Jenkins credentials for 13 instances
 
-`registry.yml` names an `auth_credential_id` and a `credential_secret_id` per instance, and both are `CHANGEME`. They cannot be filled in before the backup gate runs, because `credential_secret_id` must hold each instance's **existing** generated key — see [`runbook.md`](runbook.md).
+`registry.yml` now **names** 26 credentials — `nodered-<instance>-auth` and `nodered-<instance>-credsecret`. Naming them is not the same as having them: the ids validate, and a deploy fails at runtime until the credentials exist in Jenkins.
 
-`wfm` is the exception in a way that needs a decision rather than a credential: its `adminAuth` is off, so there is nothing to authenticate against. Switching it on is the obvious fix and it is a change to a running instance, so it is your call.
+`credential_secret_id` in particular cannot be created before the backup gate, because it must hold each instance's **existing** generated key. Creating it from a fresh value re-encrypts every stored credential into garbage. Order matters here — [`runbook.md`](runbook.md).
 
-**Unblocks:** `validate-registry.py` without `--draft`, and therefore any real deploy.
+`wfm` needs a decision before a credential: its `adminAuth` is off, so there is nothing to authenticate against yet.
+
+**Unblocks:** any real deploy.
 
 ## Not blocking
 
-### 5. Is `wag-prod`'s 15-node flow real production work?
+### 3. Is `wag-prod`'s 15-node flow real production work?
 
 `wag-svr-lin01` was rebuilt the week before the inventory. Its prod instance has 15 nodes and no palette modules; its test instance has 222 nodes and two. That pattern reads more like a prod instance not yet migrated back after the rebuild than like a small production application.
 
@@ -66,6 +53,7 @@ If prod is genuinely unmigrated, it is the ideal first target — nothing to los
 
 | Question | Answer | Recorded in |
 |---|---|---|
+| The palette versions? | Collected from the running instances; all 11 apps carry a `package.json` and a `Dockerfile` | `apps/` |
 | Harbor project for the images? | `dap-node-red` exists. Tags are `<registry>/dap-node-red/<app>:<node-red-version>-<palette build>`, filled in for all 13 | `registry.yml` |
 | The two settings.js deviations? | Both normalized to what the others do — `wfm` gets `adminAuth`, `cho-prod` goes back to `level: "info"`. One settings.js in the repo | decision 13 |
 | What is every instance's admin root? | Probed on all 13: 8 on `/node-red-prod` or `/node-red-test`, 5 on plain `/`. All in `registry.yml` | [`architecture.md`](architecture.md) |
