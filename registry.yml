@@ -23,8 +23,8 @@ instances:
     compose_service: node-red-prod
     app: cho-prod
     admin_root: /node-red-prod
-    auth_credential_id: CHANGEME-nodered-cho-prod-auth
-    credential_secret_id: CHANGEME-nodered-cho-prod-credsecret
+    auth_credential_id: nodered-cho-prod-auth
+    credential_secret_id: nodered-cho-prod-credsecret
     dns_search: [cho.polipol.intra, rah.polipol.intra]
     image_tag: CHANGEME  # running node-red 4.0.5, 68 nodes, no palette
     variables: {}
@@ -34,8 +34,8 @@ instances:
     compose_service: node-red-test
     app: cho-test
     admin_root: /node-red-test
-    auth_credential_id: CHANGEME-nodered-cho-test-auth
-    credential_secret_id: CHANGEME-nodered-cho-test-credsecret
+    auth_credential_id: nodered-cho-test-auth
+    credential_secret_id: nodered-cho-test-credsecret
     dns_search: [cho.polipol.intra, rah.polipol.intra]
     image_tag: CHANGEME  # running node-red 4.0.5, 6 nodes, no palette
     variables: {}
@@ -46,8 +46,8 @@ instances:
     compose_service: node-red-prod
     app: gor-prod
     admin_root: ""
-    auth_credential_id: CHANGEME-nodered-gor-prod-auth
-    credential_secret_id: CHANGEME-nodered-gor-prod-credsecret
+    auth_credential_id: nodered-gor-prod-auth
+    credential_secret_id: nodered-gor-prod-credsecret
     dns_search: []
     image_tag: CHANGEME  # running node-red 4.0.5, 94 nodes, 7 palette modules
     variables: {}
@@ -57,8 +57,8 @@ instances:
     compose_service: node-red-test
     app: gor-test
     admin_root: ""
-    auth_credential_id: CHANGEME-nodered-gor-test-auth
-    credential_secret_id: CHANGEME-nodered-gor-test-credsecret
+    auth_credential_id: nodered-gor-test-auth
+    credential_secret_id: nodered-gor-test-credsecret
     dns_search: []
     image_tag: CHANGEME  # running node-red 4.0.5, 132 nodes, 2 palette modules
     variables: {}
@@ -69,8 +69,8 @@ instances:
     compose_service: node-red-prod
     app: jan-prod
     admin_root: ""
-    auth_credential_id: CHANGEME-nodered-jan-prod-auth
-    credential_secret_id: CHANGEME-nodered-jan-prod-credsecret
+    auth_credential_id: nodered-jan-prod-auth
+    credential_secret_id: nodered-jan-prod-credsecret
     dns_search: [cho.polipol.intra, rah.polipol.intra, pod.polipol.intra, jan.polipol.intra,
                  srem.polipol.intra, foi.polipol.intra, wag.polipol.intra, sul.polipol.intra,
                  slu.polipol.intra]
@@ -82,8 +82,8 @@ instances:
     compose_service: node-red-test
     app: jan-test
     admin_root: ""
-    auth_credential_id: CHANGEME-nodered-jan-test-auth
-    credential_secret_id: CHANGEME-nodered-jan-test-credsecret
+    auth_credential_id: nodered-jan-test-auth
+    credential_secret_id: nodered-jan-test-credsecret
     dns_search: [cho.polipol.intra, rah.polipol.intra, pod.polipol.intra, jan.polipol.intra,
                  srem.polipol.intra, foi.polipol.intra, wag.polipol.intra, sul.polipol.intra,
                  slu.polipol.intra]
@@ -99,8 +99,8 @@ instances:
     compose_service: node-red-prod
     app: null
     admin_root: /node-red-prod
-    auth_credential_id: CHANGEME-nodered-slu-prod-auth
-    credential_secret_id: CHANGEME-nodered-slu-prod-credsecret
+    auth_credential_id: nodered-slu-prod-auth
+    credential_secret_id: nodered-slu-prod-credsecret
     dns_search: [rah.polipol.intra, slu.polipol.intra]
     image_tag: CHANGEME  # running node-red 4.0.9, empty
     variables: {}
@@ -110,8 +110,8 @@ instances:
     compose_service: node-red-test
     app: null
     admin_root: /node-red-test
-    auth_credential_id: CHANGEME-nodered-slu-test-auth
-    credential_secret_id: CHANGEME-nodered-slu-test-credsecret
+    auth_credential_id: nodered-slu-test-auth
+    credential_secret_id: nodered-slu-test-credsecret
     dns_search: [rah.polipol.intra, slu.polipol.intra]
     image_tag: CHANGEME  # running node-red 4.0.9, empty
     variables: {}
@@ -122,8 +122,8 @@ instances:
     compose_service: node-red-prod
     app: srem-prod
     admin_root: /node-red-prod
-    auth_credential_id: CHANGEME-nodered-srem-prod-auth
-    credential_secret_id: CHANGEME-nodered-srem-prod-credsecret
+    auth_credential_id: nodered-srem-prod-auth
+    credential_secret_id: nodered-srem-prod-credsecret
     dns_search: [rah.polipol.intra, srem.polipol.intra]
     image_tag: CHANGEME  # running node-red 4.0.9, 205 nodes / 40 types — largest
     variables: {}
@@ -133,8 +133,8 @@ instances:
     compose_service: node-red-test
     app: srem-test
     admin_root: /node-red-test
-    auth_credential_id: CHANGEME-nodered-srem-test-auth
-    credential_secret_id: CHANGEME-nodered-srem-test-credsecret
+    auth_credential_id: nodered-srem-test-auth
+    credential_secret_id: nodered-srem-test-credsecret
     dns_search: [rah.polipol.intra, srem.polipol.intra]
     image_tag: CHANGEME  # running node-red 4.0.9, 79 nodes, 7 palette modules
     variables: {}
@@ -145,8 +145,8 @@ instances:
     compose_service: node-red-prod
     app: wag-prod
     admin_root: /node-red-prod
-    auth_credential_id: CHANGEME-nodered-wag-prod-auth
-    credential_secret_id: CHANGEME-nodered-wag-prod-credsecret
+    auth_credential_id: nodered-wag-prod-auth
+    credential_secret_id: nodered-wag-prod-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
     image_tag: CHANGEME  # running node-red 5.0.1, 15 nodes, no palette
     variables: {}
@@ -156,8 +156,8 @@ instances:
     compose_service: node-red-test
     app: wag-test
     admin_root: /node-red-test
-    auth_credential_id: CHANGEME-nodered-wag-test-auth
-    credential_secret_id: CHANGEME-nodered-wag-test-credsecret
+    auth_credential_id: nodered-wag-test-auth
+    credential_secret_id: nodered-wag-test-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
     image_tag: CHANGEME  # running node-red 5.0.1, 222 nodes, 2 palette modules
     variables: {}
@@ -171,8 +171,8 @@ instances:
     compose_service: node-red
     app: wfm
     admin_root: ""
-    auth_credential_id: CHANGEME-nodered-wfm-auth
-    credential_secret_id: CHANGEME-nodered-wfm-credsecret
+    auth_credential_id: nodered-wfm-auth
+    credential_secret_id: nodered-wfm-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
     image_tag: CHANGEME  # running node-red 4.0.9, 19 nodes, node-red-contrib-opcua
     variables: {}
