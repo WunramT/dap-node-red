@@ -108,7 +108,13 @@ Build this early — it pays off before any pipeline exists, and it is what make
 ## Drift check
 
 ```
-python scripts/drift-check.py
+python3 scripts/drift-check.py --all
+python3 scripts/drift-check.py --instance gor-prod --show-diff
+python3 scripts/drift-check.py --all --json inventory/drift.json --fail-on-drift
 ```
 
-Read-only sweep across all instances: `GET /flows`, normalize, diff against Git, report. It never writes.
+Read-only: `GET /flows`, normalize, diff against Git, report. It never writes to an instance and offers no flag that would.
+
+Exit 0 when clean, 1 when an instance is unreachable, and 3 only with `--fail-on-drift` — for a scheduled check that should go red. Without the flag drift is reported and the exit stays 0, because drift is information, not a failure.
+
+An unreachable instance does not stop the sweep; it is one row in the report. `--json` writes the full report, diffs included, which is what the visibility page renders (decision 11).

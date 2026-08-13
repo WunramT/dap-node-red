@@ -26,7 +26,7 @@ Two transports, both versioned:
 | `apps/*/flows.json` | done — 11 apps, normalized |
 | `apps/*/package.json` + `Dockerfile` | done — 11 apps, palette versions as installed |
 | `deploy.py` + tests | done — pending a run against a real instance |
-| `drift-check.py` | not built |
+| `drift-check.py` + tests | done — read-only sweep, JSON report |
 | `Jenkinsfile` | still the template's; holds the host map the new pipeline needs |
 
 ```bash
@@ -38,6 +38,7 @@ python3 scripts/normalize.py --check apps/*/flows.json
 python3 scripts/scaffold-apps.py                  # samples/ -> apps/
 python3 scripts/test_deploy.py                    # deploy against a stub Admin API
 python3 scripts/deploy.py --instance wag-prod --dry-run
+python3 scripts/drift-check.py --all --json inventory/drift.json
 
 # Re-inventory the hosts (read-only; credentials in a gitignored hosts.local.json)
 python3 scripts/collect-inventory.py

@@ -173,6 +173,49 @@ r = run("--instance", "does-not-exist", "--dry-run")
 check("an unknown instance fails clearly",
       r.returncode != 0 and "no instance named" in r.stderr)
 
+# --- drift-check ------------------------------------------------------------
+DRIFT = ROOT / "scripts" / "drift-check.py"
+
+
+def drift(*args, creds=True):
+    env = {**os.environ, "NODE_RED_BASE_URL": BASE}
+    if creds:
+        stem = re.sub(r"[^A-Za-z0-9]", "_", WAG["auth_credential_id"]).upper()
+        env[f"{stem}_USR"], env[f"{stem}_PSW"] = "admin", "secret"
+    return subprocess.run([sys.executable, str(DRIFT), *args],
+                          capture_output=True, text=True, env=env, cwd=ROOT)
+
+
+print()
+STATE["flows"] = json.loads((ROOT / "apps" / "wag-prod" / "flows.json").read_text(encoding="utf-8"))
+STATE["posted"] = None
+r = drift("--instance", "wag-prod")
+check("drift-check reports a matching instance as clean",
+      r.returncode == 0 and "clean" in r.stdout, r.stdout[:300] + r.stderr[-200:])
+check("drift-check writes nothing to the instance", STATE["posted"] is None)
+
+STATE["flows"] = [{"id": "hand-edit", "type": "inject", "z": "t", "name": "edited in browser"}]
+r = drift("--instance", "wag-prod")
+check("drift-check reports a diverged instance as drifted", "drifted" in r.stdout, r.stdout[:300])
+check("drift is not an error by default", r.returncode == 0, f"rc={r.returncode}")
+check("drift-check still wrote nothing", STATE["posted"] is None)
+check("drift-check names the recovery path", "runbook.md" in r.stdout)
+
+r = drift("--instance", "wag-prod", "--fail-on-drift")
+check("--fail-on-drift exits 3", r.returncode == 3, f"rc={r.returncode}")
+
+import tempfile as _tf
+with _tf.TemporaryDirectory() as d:
+    out = Path(d) / "drift.json"
+    r = drift("--instance", "wag-prod", "--json", str(out))
+    report = json.loads(out.read_text(encoding="utf-8"))
+    check("--json carries the machine-readable report",
+          report[0]["state"] == "drifted" and report[0]["changed_lines"] > 0, str(report)[:200])
+
+check("drift-check offers no way to write",
+      not any(flag in DRIFT.read_text(encoding="utf-8")
+              for flag in ("--fix", "--force", "--repair", "--reconcile")))
+
 server.shutdown()
 print(f"\n{len(FAILED)} failed" if FAILED else "\nall passed")
 sys.exit(1 if FAILED else 0)
