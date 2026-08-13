@@ -16,19 +16,20 @@ It writes `inventory/REPORT.md` (the answers), `registry.draft.yml` and `samples
 
 ## Blocking
 
-### 1. The 11 real `flows.json` files, in the repo
+### 1. The palette versions, so `apps/` can be finished
 
-`normalize.py` is the next thing to build and it cannot be tested without them. The collector already downloaded them to `samples/` on the machine that ran it — they just need to reach the repo:
+`apps/*/flows.json` is in place for all 11 apps. What is missing is each app's `package.json` and `Dockerfile`, because the exact palette versions live in `inventory/<host>.json` — gitignored, and therefore only on the machine that ran the collector.
+
+Run it there, then push:
 
 ```bash
-git add samples/ && git commit -m "chore: add flow samples from the inventory" && git push
+python3 scripts/scaffold-apps.py
+git add apps/ && git commit -m "chore: add app palettes and Dockerfiles" && git push
 ```
 
-`flows.json` holds no credentials; those live in `flows_cred.json`, which the collector never downloads and `.gitignore` excludes. `samples/` is also in `.semgrepignore`, because broker hostnames and topic names read as secrets to the scanner.
+The Dockerfile and package.json are written together or not at all, so no app carries a Dockerfile that would fail at build time on a missing `COPY`.
 
-11 files, not 13 — `slu-prod` and `slu-test` have no flow.
-
-**Unblocks:** `normalize.py`, and with it the first real test of whether a 205-node flow diffs readably.
+**Unblocks:** the image build, and therefore the palette transport.
 
 ### 2. The FlowFuse credential key
 
