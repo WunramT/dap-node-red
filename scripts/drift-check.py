@@ -8,8 +8,14 @@ It reads. It never writes to an instance, never reconciles, never "fixes" one.
 A drift checker that repairs what it finds is decision 3 through the back door:
 the browser edit it would flatten is the thing worth keeping.
 
-Same reach constraint as deploy.py — it runs on the target host and finds the
-instance through Docker, unless NODE_RED_BASE_URL says otherwise.
+Same reach constraint as deploy.py — it runs on the target host and finds each
+instance through Docker. To sweep from a workstation instead, override the base
+per instance, because there is no single answer from outside: some instances sit
+behind nginx, some publish a port, some neither.
+
+    NODE_RED_BASE_URL_GOR_PROD=http://gor-svr-lin01:1881
+
+The table in docs/runbook.md lists them.
 
 Exit codes: 0 clean, 1 unreachable or unauthorized, 3 drift found. Drift is
 only an error where a schedule wants to go red for it, so 3 requires
@@ -21,13 +27,12 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deploy import (  # noqa: E402
-    ROOT, env_credentials, container_url, get_token, load_instances, request, resolve_base,
+    ROOT, base_url_for, env_credentials, get_token, load_instances, request, resolve_base,
 )
 from normalize import normalize, render  # noqa: E402
 
@@ -44,10 +49,7 @@ def inspect(inst: dict) -> dict:
 
     admin_root = inst.get("admin_root") or ""
     try:
-        base = resolve_base(
-            os.environ.get("NODE_RED_BASE_URL") or container_url(inst["compose_service"]),
-            admin_root,
-        )
+        base = resolve_base(base_url_for(inst), admin_root)
         creds = env_credentials(inst["auth_credential_id"])
         token = get_token(base, admin_root, *creds) if creds else None
         _, payload = request(f"{base}{admin_root}/flows", token=token)

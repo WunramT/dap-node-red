@@ -103,6 +103,24 @@ The pipeline runs `deploy.py` on the target host, where every instance is at `ht
 
 On `gor` and `jan` the prod and test ports are the reverse of what the names suggest. The table is a snapshot; `collect-inventory.py` re-derives it, and only the host-side path is what the pipeline depends on.
 
+To sweep several instances in one run, set the base per instance — `NODE_RED_BASE_URL_<INSTANCE>`, with `-` as `_` and upper-cased. A plain `NODE_RED_BASE_URL` still applies to anything without its own override:
+
+```powershell
+$env:NODE_RED_BASE_URL_WAG_PROD  = "http://wag-svr-lin01"
+$env:NODE_RED_BASE_URL_WAG_TEST  = "http://wag-svr-lin01"
+$env:NODE_RED_BASE_URL_CHO_PROD  = "http://cho-svr-lin01:1880"
+$env:NODE_RED_BASE_URL_CHO_TEST  = "http://cho-svr-lin01:1881"
+$env:NODE_RED_BASE_URL_GOR_PROD  = "http://gor-svr-lin01:1881"
+$env:NODE_RED_BASE_URL_GOR_TEST  = "http://gor-svr-lin01:1880"
+$env:NODE_RED_BASE_URL_JAN_PROD  = "http://jan-svr-lin01:1880"
+$env:NODE_RED_BASE_URL_JAN_TEST  = "http://jan-svr-lin01:1881"
+$env:NODE_RED_BASE_URL_WFM       = "http://wfm-svr-lin01:1880"
+
+python3 scripts/drift-check.py --all --json inventory/drift.json
+```
+
+`srem-prod`, `srem-test` and `slu-prod` publish no port and will report as unreachable from a workstation. That is accurate, not a fault: reaching them means running on the host, which is what the pipeline does.
+
 **On `409`:** the running flow diverged from Git. Someone edited in the browser. Recover the edit rather than discarding it:
 
 1. `GET <admin_root>/flows` and save the running flow.

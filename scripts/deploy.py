@@ -91,6 +91,27 @@ def container_url(service: str) -> str:
     return f"http://{ip[0]}:1880"
 
 
+def env_var(prefix: str, name: str) -> str:
+    return f"{prefix}_{re.sub(r'[^A-Za-z0-9]', '_', name).upper()}"
+
+
+def base_url_for(inst: dict) -> str:
+    """Where to reach this instance.
+
+    On the host — where the pipeline runs — Docker answers, and every instance
+    is at the container address on 1880. From a workstation there is no single
+    answer: some instances sit behind nginx, some publish a port, some neither.
+    So a per-instance override comes first, which is what makes a sweep across
+    the estate possible before Jenkins exists.
+
+        NODE_RED_BASE_URL_GOR_PROD=http://gor-svr-lin01:1881
+        NODE_RED_BASE_URL=http://one-host-for-everything   # fallback
+    """
+    return (os.environ.get(env_var("NODE_RED_BASE_URL", inst["name"]))
+            or os.environ.get("NODE_RED_BASE_URL")
+            or container_url(inst["compose_service"]))
+
+
 def env_credentials(credential_id: str) -> tuple[str, str] | None:
     stem = re.sub(r"[^A-Za-z0-9]", "_", credential_id).upper()
     user, password = os.environ.get(f"{stem}_USR"), os.environ.get(f"{stem}_PSW")
@@ -179,10 +200,7 @@ def deploy(inst: dict, dry_run: bool) -> int:
     desired = json.loads(flow_file.read_text(encoding="utf-8"))
 
     admin_root = inst.get("admin_root") or ""
-    base = resolve_base(
-        os.environ.get("NODE_RED_BASE_URL") or container_url(inst["compose_service"]),
-        admin_root,
-    )
+    base = resolve_base(base_url_for(inst), admin_root)
     print(f"{name}: {base}{admin_root}/flows")
 
     token = None
