@@ -4,11 +4,22 @@ Status: target architecture, not yet built. Rationale and closed decisions: [`de
 
 ## The problem
 
-16 Node-RED instances: 8 site servers, each running a dev and a prod instance. Flows are edited in the browser editor and today reach production by hand. There is no history, no review, and no way to tell what is running.
+15 Node-RED runtimes across 10 servers. Flows are edited in the browser editor and today reach production by hand. There is no history, no review, and no way to tell what is running.
 
-Two of the servers do not run plain Node-RED containers at all — they run instances under **FlowFuse**, which are to become plain containers as part of this project. See "FlowFuse instances" below.
+Measured, not assumed — `scripts/collect-inventory.py` visited every host:
 
-Topology is **mixed**, not a fleet: a few instances share logic, most are one-offs. The measured pair on `wag-svr-lin01` proves it — `node-red-prod` has 15 nodes and no palette modules, `node-red-test` has 226 nodes and depends on `node-red-contrib-postgresql` and `node-red-contrib-queue-gate`. Those are two different applications that happen to share a host. A template-first system would be wrong.
+| | |
+|---|---|
+| 6 servers with a dev/prod pair | `cho`, `gor`, `jan`, `slu`, `srem`, `wag` — 12 instances |
+| 1 server with a single instance | `wfm-svr-lin01` — one `node-red`, and **no `adminAuth`** |
+| 2 servers under FlowFuse | `pod-svr-lin01`, `dpn-svr-iot` — migration targets, see below |
+| 1 server with no Node-RED at all | `foi-svr-lnx01` — NATS, iot-bridges, dashboards |
+
+Two of those servers, `wfm-svr-lin01` and `dpn-svr-iot`, are absent from the Jenkins host map, which knows 8. The map is the input to the new pipeline, so it grows by two.
+
+Topology is **not a fleet**: no two instances share a flow signature — the collector compared the node type and name multiset of every flow, ignoring ids and layout, and found no match. Every instance is its own application. `wag-svr-lin01` makes the point concretely: `node-red-prod` has 15 nodes and no palette, `node-red-test` has 222 nodes and two palette modules. A template-first system would be wrong, and there are no shared `apps/` directories to factor out.
+
+The palette across the estate is wider than the first pair suggested: `node-red-contrib-opcua`, `node-red-contrib-postgresql`, `node-red-contrib-mssql-plus`, `node-red-contrib-queue-gate`, `node-red-dashboard`, `node-red-node-ui-table`, `node-red-contrib-ui-upload`, `@martip/node-red-xlsx`. Largest instance is `srem-svr-lin01/node-red-prod` at 205 nodes across 40 node types.
 
 ## The shape
 
@@ -103,7 +114,7 @@ That host was rebuilt in the week before the inventory, which makes it the curre
 | `flows_cred.json` | present on both | real credentials in use; undecryptable without that key file |
 | `httpAdminRoot` | `/node-red-prod`, `/node-red-test` | API base path is per-instance |
 | `adminAuth` | active, bcrypt | token call required before every API call |
-| published ports | none | nginx does path-based routing; port allocation is a non-problem |
+| published ports | **mixed** | `cho`, `gor`, `jan` publish 1880/1881, `slu-test` 1882, `wfm` 1880; `wag`, `srem` and `slu-prod` publish nothing. Not a uniform property, so the deploy path cannot rely on one |
 | `flowFilePretty` | `true` | flows already multi-line; the normalizer strips and sorts, it does not reformat |
 | `contextStorage` | commented out | memory-only context; a recreate loses nothing but the restart gap |
 | `functionExternalModules` | `true`, zero nodes using it | image baking is a real guarantee only while that stays zero — hence the CI check |
@@ -121,12 +132,14 @@ Two servers run their Node-RED under FlowFuse. They are a **migration source**, 
 
 That direction is the same decision the whole architecture rests on. FlowFuse is a control plane that owns the flows, which is the category decision 1 rejected — the reasoning does not change because the control plane is a good one.
 
-The migration hinges on one fact the inventory has to establish rather than assume: **where the authoritative flow actually lives.** If FlowFuse keeps it in its platform and `/data/flows.json` is a cache or absent, the export runs against FlowFuse, not against the filesystem. `collect-inventory.py` reports the storage module in use, every `flows*.json` on disk, and the `FORGE_*` environment (token values masked) for exactly this reason.
+Both run `flowfuse/device-agent:latest`, and the inventory found the decisive fact: the flow **is on disk**, at `/opt/flowfuse-device/project/flows.json`, with `flows_cred.json` beside it. Extraction is a file copy, not a platform export — the expensive version of this migration is off the table.
 
-Two costs to expect, both to be confirmed against the report rather than assumed:
+Two things that still need settling:
 
-- **Credentials do not travel.** FlowFuse encrypts them with a key it manages. If that key cannot be exported, every credential in a migrated flow is re-entered once in the new instance — a manual step per instance, worth planning for rather than discovering mid-cutover.
-- **Palette is FlowFuse-managed.** Whatever it installs per project becomes that app's `apps/<app>/package.json`, which the image then bakes.
+- **The credential key.** `flows_cred.json` exists, so credentials are in use and encrypted. The key lives in the device-agent's own configuration, not in `/data`. Whether it can be carried over decides between "copy two files" and "copy the flow and re-enter every credential by hand". Open question 3.
+- **The device agent keeps syncing.** The file on disk is the agent's copy of what the platform holds; the platform stays the source of truth until the device is unenrolled. So the cutover order matters: copy the flow, stand up the plain container, unenroll, then retire the agent — otherwise the agent overwrites the file from the platform.
+
+Palette is FlowFuse-managed: whatever it installs per project becomes that app's `apps/<app>/package.json`, which the image then bakes.
 
 Sequencing: migrate a plain-container pair first. It proves normalize → commit → deploy end to end against the simpler case, and the FlowFuse cutover then only adds the export step to a path that already works.
 

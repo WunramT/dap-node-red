@@ -16,22 +16,13 @@ It writes `inventory/REPORT.md` (the answers), `registry.draft.yml` (16 pre-fill
 
 ## Blocking
 
-### 1. Are the 16 `settings.js` files the same file?
+### 1. The real admin root of every instance
 
-The expectation is yes, differing only in `httpAdminRoot` and `dns_search`. Worth verifying rather than assuming, because four things plausibly differ and one of them is invisible:
+The one field `deploy.py` cannot get wrong, and the first inventory pass got it wrong on five instances: the parser matched Node-RED's commented-out template lines, so `//httpAdminRoot: '/admin'` was reported as a configured `/admin`. Those five answered `404`.
 
-- **`httpAdminRoot`** — different by design, one per instance
-- **`dns_search`** — different per site
-- **`adminAuth` bcrypt hash** — different if the sites do not share one admin password
-- **`credentialSecret`** — currently unset everywhere; once pinned (see [`runbook.md`](runbook.md)) it is necessarily different per instance
-- **the scaffold itself** — this is the invisible one. Node-RED generates `settings.js` from the image default on first run, and the instances run `nodered/node-red:latest`. Instances first started months apart were seeded from different image versions, so their `settings.js` can differ in options, defaults and comment blocks that nobody ever edited. Two files can be "unmodified" and still not match.
+The collector now establishes it empirically — it tries each candidate root as `<root>/flows` and takes whichever answers `401` or `200`. Re-run it and read the **Admin API probe** table; the `registry.yml` draft uses the probed value and marks anything unresolved.
 
-The collector groups the files by hash, after masking the secret values and the fields that are per-instance by nature, and reports:
-
-- **one group** → one template plus env overrides, one file in the repo, and the four fields above become per-instance values
-- **several groups** → it writes the diffs between group representatives straight into the report, so what actually differs is visible without a second pass
-
-**Unblocks:** repository layout. This is the difference between one file and sixteen.
+**Unblocks:** every `admin_root` in `registry.yml`, and therefore `deploy.py`.
 
 ### 2. The real `flows.json` files, in the repo
 
@@ -39,18 +30,20 @@ The collector groups the files by hash, after masking the secret values and the 
 
 **Unblocks:** the first build task, and the cheapest possible test of whether normalized diffs are human-readable at all.
 
-### 3. Where does the authoritative flow live on the two FlowFuse servers?
+### 3. The FlowFuse credential key
 
-Those instances become plain containers as part of this project (decision 12), so their flows have to come out of FlowFuse once. Everything about how depends on one fact: whether `/data/flows.json` is the real flow, a cache, or absent because FlowFuse keeps it in its platform.
+Where the flow lives is settled: on disk, at `/opt/flowfuse-device/project/flows.json`, with `flows_cred.json` beside it on both device agents. Extraction is a file copy.
 
-`collect-inventory.py` answers it — it reports the storage module in `settings.js`, every `flows*.json` on disk, the `FORGE_*` environment with token values masked, and the palette FlowFuse installed. Read the **FlowFuse instances** section of `inventory/REPORT.md`.
+What is not settled is the key that decrypts `flows_cred.json`. It sits in the device-agent's own configuration rather than in `/data`, and it decides between two very different migrations — copy two files, or copy the flow and re-enter every credential by hand in the new instance.
 
-Two follow-ups that the report scopes rather than answers:
+```bash
+ssh pod-svr-lin01 'sudo ls -la /opt/flowfuse-device/'
+ssh pod-svr-lin01 'docker exec flowfuse-flow-fuse-1-1 sh -lc "ls -la /opt/flowfuse-device /opt/flowfuse-device/project"'
+```
 
-- **Can the credential key be exported?** FlowFuse encrypts credentials with a key it manages. If that key cannot travel, every credential in a migrated flow is re-entered once by hand in the new instance. That is a per-instance manual step, and it is much better planned than discovered during a cutover.
-- **What does the export path look like?** Whether it is a UI export per instance or a platform API call decides whether the migration is a documented manual procedure or a script. Not worth designing before the report says where the flow is.
+Look for the agent's config (`device.yml` or similar) and for a `credentialSecret` or `_credentialSecret` in `/opt/flowfuse-device/project/settings.js` or `.config.runtime.json`. Report whether one exists — not its value.
 
-**Unblocks:** the migration procedure for two of the servers. It blocks nothing on the other six — those go first regardless (see "Sequencing" in [`architecture.md`](architecture.md)).
+**Unblocks:** the migration procedure for two servers. It blocks nothing on the other eight — those go first regardless (see "Sequencing" in [`architecture.md`](architecture.md)).
 
 ### 4. Harbor project for Node-RED images
 
@@ -66,14 +59,23 @@ The existing pipeline pushes to `harbor.aks-infra.polipol-service.de` under `dap
 
 If prod is genuinely unmigrated, it is the ideal first target — nothing to lose. If it is live, the 15-node flow is still the easier of the two to bring under Git first.
 
-### 6. Which instances actually share logic?
+### 6. Three settings.js differences to reconcile
 
-Determines how many shared `apps/` directories exist and, later, how many subflow npm packages get written. The scaffold works with zero shared apps; this only affects how much deduplication is available.
+The diffs showed every difference across the 13 plain instances. Most are noise — indentation, whether `httpAdminRoot` is commented out, and comment blocks that Node-RED rewrote between versions (`wag` was rebuilt recently and has `telemetry` and `globalFunctionTimeout` blocks the others lack). Three are real:
+
+1. **`cho-svr-lin01/node-red-prod` logs at `level: "trace"`** while every other instance logs at `info`. Reads like debugging left switched on in production.
+2. **`wfm-svr-lin01/node-red` has `adminAuth` commented out entirely.** Its editor and Admin API are open to anyone who can reach the container — and it publishes port 1880 on the host. Worth deciding on before the pipeline gains write access to it.
+3. **Node-RED versions differ**, because every instance runs `nodered/node-red:latest` and was first started on a different date. Pinning (decision 5) settles this, but the pin has to be chosen against the oldest instance still in use.
+
+None of these block the scaffold. All three want a decision before the first deploy.
 
 ## Answered
 
 | Question | Answer | Recorded in |
 |---|---|---|
+| Are the settings.js files the same file? | Yes — one template plus env overrides is viable. The literal text differs by whitespace, comment state and settings.js vintage; the real config differences are three, listed below | [`architecture.md`](architecture.md) |
+| Which instances share logic? | None. No two flows match, so every instance gets its own `apps/` directory | [`architecture.md`](architecture.md) |
+| Where does the FlowFuse flow live? | On disk, `/opt/flowfuse-device/project/flows.json` — a file copy, not a platform export | [`architecture.md`](architecture.md) |
 | How does the deploying agent reach the Admin API? | Jenkins ships `deploy.py` over SSH and runs it on the target host, reaching the container by IP on `app_network` | decision 10 |
 | How many servers and instances? | 8 servers × dev/prod = 16 instances | [`architecture.md`](architecture.md) |
 | `wag-svr-lin01` or `wag-svr-lin01n`? | `wag-svr-lin01`, rebuilt the week before the inventory — current baseline | [`architecture.md`](architecture.md) |

@@ -54,6 +54,8 @@ Two substitution mechanisms, deliberately different in scope:
 
 ## Scope
 
-Up to 16 entries: 8 site servers, each with a dev and a prod instance. The host names come from the map in the `Jenkinsfile`; `collect-inventory.py` confirms the instance names per host and writes a pre-filled draft.
+13 entries today: 6 servers with a dev/prod pair, plus the single instance on `wfm-svr-lin01`. `collect-inventory.py` writes a pre-filled draft from the live hosts.
+
+Two of those hosts are missing from the Jenkins host map, which knows 8 — `wfm-svr-lin01` and `dpn-svr-iot` have to be added to it before the pipeline can reach them.
 
 Instances still running under FlowFuse are **not** entries yet. They join the registry once they have been migrated to plain containers (decision 12); until then the draft carries them as a comment, so the file records that they exist without claiming the pipeline can deploy them.

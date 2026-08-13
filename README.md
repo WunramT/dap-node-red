@@ -1,6 +1,6 @@
 # dap-node-red
 
-Deployment for ~16 Node-RED instances (8 site servers × dev/prod). Git holds the flows, CI deploys them.
+Deployment for 15 Node-RED runtimes across 10 servers — 13 plain instances, 2 under FlowFuse awaiting migration. Git holds the flows, CI deploys them.
 
 Two transports, both versioned:
 
