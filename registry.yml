@@ -16,6 +16,8 @@ global_variables: {}
 
 instances:
   # --- cho-svr-lin01 --------------------------------------------------------
+  # Was logging at level "trace" while every other instance logged at "info";
+  # normalized back to "info" with the credentialSecret pin (decision 13).
   - name: cho-prod
     host: cho-svr-lin01
     compose_service: node-red-prod
@@ -27,8 +29,6 @@ instances:
     image_tag: CHANGEME  # running node-red 4.0.5, 68 nodes, no palette
     variables: {}
 
-  # Logs at level "trace" while every other instance logs at "info".
-  # Reconcile before the first deploy — see docs/open-questions.md question 6.
   - name: cho-test
     host: cho-svr-lin01
     compose_service: node-red-test
@@ -163,10 +163,9 @@ instances:
     variables: {}
 
   # --- wfm-svr-lin01 --------------------------------------------------------
-  # adminAuth is off: the probe returned 200, not 401. Editor and Admin API are
-  # open to anyone who can reach the container, and it publishes 1880 on the
-  # host. auth_credential_id stays CHANGEME until adminAuth is switched on;
-  # deploy.py has nothing to authenticate against until then.
+  # adminAuth was off — the probe returned 200, not 401 — on a host that
+  # publishes 1880. Being switched on with the credentialSecret pin
+  # (decision 13); until then deploy.py has nothing to authenticate against.
   - name: wfm
     host: wfm-svr-lin01
     compose_service: node-red

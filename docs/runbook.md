@@ -63,11 +63,17 @@ The compose file and service name differ per host; both are in `registry.yml`.
 
 **4. Verify.** Open the editor and confirm a stored credential still decrypts. On `wfm`, confirm the login prompt appears and that `curl -s -o /dev/null -w '%{http_code}' http://<ip>:1880/flows` now returns `401` rather than `200`.
 
-## Compose split (~1h)
+## Compose split
 
-The Node-RED services currently live in `/home/administrator/base_container/docker-compose.yml` alongside NATS and others. Move them into their own compose project so image-tag pinning and recreates cannot touch a neighbouring service.
+The compose file differs per host — `code/node-red/`, `energy/`, `Base_Container/`, `base_container/` — and the inventory's neighbour probe found no non-Node-RED service in any of those projects. If that holds, the split is already done and there is no work here.
 
-Until that lands, every compose call names its service: `docker compose up -d node-red-prod`. A bare `docker compose up -d` recreates NATS.
+It contradicts the earlier report that NATS shares `wag`'s file, so confirm before believing it:
+
+```bash
+ssh <host> "docker compose -f <compose_file> config --services"
+```
+
+Either way, every compose call names its service — `docker compose up -d <compose_service>`. That costs nothing and holds whichever answer comes back.
 
 ## Flow deploy
 
