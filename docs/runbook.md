@@ -98,6 +98,8 @@ nodered-gor-test-auth    nodered-srem-test-auth
 
 `nodered-wfm-auth` cannot be created usefully yet: `wfm` has `adminAuth` switched off. Jenkins fails on a credential id that does not exist, so switch `adminAuth` on first (decision 13), then create the credential with the same user and password.
 
+The two FlowFuse servers need no credential at all yet, and neither does `pod-svr-lin01_pw` or `dpn-svr-iot_pw`. Those instances are not in `registry.yml` (decision 12), so the pipeline never resolves a credential for them. They enter after the migration, in this order: copy the flow, start the plain container, **unenroll the device**, retire the agent. Unenrolling last would let the agent overwrite the flow from the platform.
+
 **Credential secrets.** Thirteen, created during the backup gate from the value each instance **already** has. No script reads them today — they are the copy of the key that lives off the server, and the key itself stays in `settings.js` on the host. A freshly invented value re-encrypts every stored credential into garbage.
 
 ## Flow deploy
