@@ -75,6 +75,31 @@ ssh <host> "docker compose -f <compose_file> config --services"
 
 Either way, every compose call names its service — `docker compose up -d <compose_service>`. That costs nothing and holds whichever answer comes back.
 
+## Jenkins credentials
+
+Three sets, all **Global** scope. The id must match `registry.yml` exactly; it is case-sensitive.
+
+| Id | Kind | Holds |
+|---|---|---|
+| `<host>_pw` | Username with password | the SSH login for that server |
+| `nodered-<instance>-auth` | Username with password | that instance's `adminAuth` user and password |
+| `nodered-<instance>-credsecret` | **Secret text** | that instance's `credentialSecret` — one value, no username |
+
+**Host logins.** Ten, one per server. Eight already exist from the inherited pipeline; `wfm-svr-lin01_pw` and `dpn-svr-iot_pw` are new, because those two hosts were missing from the old map.
+
+**Admin API logins.** Eleven, not thirteen: `slu-prod` and `slu-test` carry `app: null`, so the pipeline never deploys to them and never asks for their credential.
+
+```
+nodered-cho-prod-auth    nodered-jan-prod-auth    nodered-wag-prod-auth
+nodered-cho-test-auth    nodered-jan-test-auth    nodered-wag-test-auth
+nodered-gor-prod-auth    nodered-srem-prod-auth   nodered-wfm-auth
+nodered-gor-test-auth    nodered-srem-test-auth
+```
+
+`nodered-wfm-auth` cannot be created usefully yet: `wfm` has `adminAuth` switched off. Jenkins fails on a credential id that does not exist, so switch `adminAuth` on first (decision 13), then create the credential with the same user and password.
+
+**Credential secrets.** Thirteen, created during the backup gate from the value each instance **already** has. No script reads them today — they are the copy of the key that lives off the server, and the key itself stays in `settings.js` on the host. A freshly invented value re-encrypts every stored credential into garbage.
+
 ## Flow deploy
 
 ```
