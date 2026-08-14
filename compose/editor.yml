@@ -1,6 +1,10 @@
 # A local Node-RED editor that writes straight into the working tree.
 #
 #   APP=wag-prod docker compose -f compose/editor.yml up
+#
+# Or, which also fills in REPO_ROOT inside a dev container:
+#
+#   python3 scripts/nr.py edit wag-prod
 #   # then open http://localhost:1880
 #
 # The editor writes apps/$APP/flows.json when you press Deploy. That removes
@@ -38,7 +42,11 @@ services:
     ports:
       - "127.0.0.1:1880:1880"     # localhost only — not reachable from the network
     volumes:
-      - ../apps/${APP:?set APP to an app directory, e.g. APP=wag-prod}:/data
+      # REPO_ROOT is empty outside a dev container, so this stays the relative
+      # path next to this file. Inside a dev container the docker daemon runs on
+      # the host and cannot see /workspaces/..., so scripts/nr.py sets REPO_ROOT
+      # to the host path and the mount resolves there instead.
+      - ${REPO_ROOT:-..}/apps/${APP:?set APP to an app directory, e.g. APP=wag-prod}:/data
     environment:
       # Load the flow, do not run it.
       NODE_RED_ENABLE_SAFE_MODE: "true"
