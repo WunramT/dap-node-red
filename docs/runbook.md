@@ -165,24 +165,6 @@ python3 scripts/drift-check.py --all --json inventory/drift.json
 
 ## Changing a flow
 
-`scripts/nr.py` wraps everything below. It reads the instance list from `registry.yml`, so it cannot list an instance that does not exist or miss one that does.
-
-```bash
-python3 scripts/nr.py            # pick an instance, pick an action
-python3 scripts/nr.py status     # every instance: does it still match Git?
-python3 scripts/nr.py edit wag-prod
-```
-
-In VS Code the same actions are tasks — **Terminal → Run Task → Node-RED: …**. The dev container in `.devcontainer/` brings Python and the dependencies.
-
-The editor is a second container, so the dev container needs to reach a container engine. `nr.py` probes for `docker compose`, `podman compose` and the standalone binaries; if none answers it prints the command to run from a host terminal instead. It also translates the workspace path — VS Code reports it as `c:\Users\...`, which podman under WSL cannot open, and the same directory is at `/mnt/c/Users/...` there.
-
-Where each instance answers and the login for it go in a gitignored `nr.local.json`; copy `nr.local.example.json`. A password left out is asked for at the prompt and is not stored.
-
-`nr.py deploy` is dry-run only, on purpose. A real deploy is a reviewed commit that Jenkins carries out; a local script that could write to production would make that path optional.
-
-The commands underneath, if you want them directly:
-
 Two routes. Which one is right depends on whether the instance may run the change while you make it.
 
 ### Route A — edit locally, then deploy
