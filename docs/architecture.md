@@ -159,7 +159,9 @@ That also explains group 3 in the settings.js comparison: `wag`'s file carries `
 
 ## Empty instances
 
-`slu-prod` and `slu-test` hold no flow at all — no `flows.json`, no `flows_cred.json`, `/data` untouched since July 2025. They are running containers with nothing in them. They carry `app: null` in `registry.yml` and get no `apps/` directory until someone decides what they are for.
+`slu-prod` and `slu-test` hold no flow at all — no `flows.json`, no `flows_cred.json`, `/data` untouched since July 2025. They are **running**, with `adminAuth` on and answering `401`; they are not stopped, they are empty. Starting them changes nothing, because there is nothing in them to start.
+
+They carry `app: null` in `registry.yml` and get no `apps/` directory until someone decides what they are for. When that happens they are the safest first true deploy in the estate: an empty instance has nothing to lose.
 
 That makes **11 instances with real flows**, not 13.
 
