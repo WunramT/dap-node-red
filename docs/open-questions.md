@@ -41,9 +41,23 @@ Look for the agent's config (`device.yml` or similar) and for a `credentialSecre
 
 **Unblocks:** any real deploy.
 
+### 3. What are `slu-prod` and `slu-test` for?
+
+Both are **running** containers with `adminAuth` on, reachable, and answering `401` — they are not stopped. They are empty: no `flows.json`, no `flows_cred.json`, and `/data` untouched since July 2025.
+
+So there is nothing to deploy to them, and starting them changes nothing. To bring them into the pipeline, three things are needed, in this order:
+
+1. **A flow.** Someone builds it, or copies one from elsewhere. This is the actual question — what are these two instances for?
+2. `apps/slu-prod/` and `apps/slu-test/`, each with `flows.json`, `package.json` and a `Dockerfile`. `scaffold-apps.py` writes them once a flow exists in `samples/`.
+3. `app: slu-prod` in `registry.yml` in place of `null`, and `nodered-slu-prod-auth` in Jenkins.
+
+The pipeline needs no change. They are also the safest possible first true deploy — an empty instance has nothing to lose.
+
+**Unblocks:** nothing. Two instances stay idle until someone decides what they do.
+
 ## Not blocking
 
-### 3. Is `wag-prod`'s 15-node flow real production work?
+### 4. Is `wag-prod`'s 15-node flow real production work?
 
 `wag-svr-lin01` was rebuilt the week before the inventory. Its prod instance has 15 nodes and no palette modules; its test instance has 222 nodes and two. That pattern reads more like a prod instance not yet migrated back after the rebuild than like a small production application.
 
