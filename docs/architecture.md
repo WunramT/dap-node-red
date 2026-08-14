@@ -57,9 +57,11 @@ base/Dockerfile   pinned nodered/node-red:<version> — see Version spread
 compose/          per-instance compose fragments
 registry.yml      instance inventory — see registry.md
 schemas/          JSON Schema for registry.yml
+compose/editor.yml  a local editor that writes into the working tree
 scripts/
   normalize.py    canonicalize flows.json
   deploy.py       token → GET /flows → rev → POST /flows
+  capture.py      the return path: running flow → apps/<app>/flows.json
   drift-check.py  read-only: running flows vs. Git
 docs/             this directory
 INVENTORY.md      inventory output, secrets stripped
@@ -198,6 +200,14 @@ Two things that still need settling:
 Palette is FlowFuse-managed: whatever it installs per project becomes that app's `apps/<app>/package.json`, which the image then bakes.
 
 Sequencing: migrate a plain-container pair first. It proves normalize → commit → deploy end to end against the simpler case, and the FlowFuse cutover then only adds the export step to a path that already works.
+
+## The two directions
+
+Git to instance is `deploy.py`. Instance to Git is `capture.py`. Both share one transport and one normalizer, so what one writes the other reads back unchanged — the inventory proved that against `wag-prod` and `gor-prod`.
+
+The return direction is what keeps this from decaying. A pipeline that only pushes makes a browser edit into a problem, and people learn to stop using the browser. With `capture.py` a browser edit is a commit, and the editor stays a legitimate tool.
+
+`compose/editor.yml` closes the loop locally: a Node-RED container mounting `apps/<app>/` as `/data`, so pressing Deploy in the editor writes the repository file. It runs without credentials, without name resolution and in safe mode, because a production flow opened in a second live runtime would consume the same MQTT topic and write the same rows twice. See [`runbook.md`](runbook.md).
 
 ## Visibility
 

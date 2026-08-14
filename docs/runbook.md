@@ -163,11 +163,54 @@ python3 scripts/drift-check.py --all --json inventory/drift.json
 3. Update `image_tag` in `registry.yml` to the new exact tag.
 4. Jenkins recreates that one service. This restarts the container; the ingest gap is expected here.
 
-## Local editor container
+## Changing a flow
 
-A Node-RED container mounting `apps/<app>/` as `/data`. The editor writes into the working tree, so the manual copy step from browser to repo disappears.
+Two routes. Which one is right depends on whether the instance may run the change while you make it.
 
-Build this early — it pays off before any pipeline exists, and it is what makes editor-valid committed flows (decision 6) practically true rather than aspirational.
+### Route A — edit locally, then deploy
+
+For a production flow, or a new flow. Nothing runs while you work.
+
+```bash
+python3 scripts/drift-check.py --instance wag-prod     # 1. confirm Git matches the instance
+APP=wag-prod docker compose -f compose/editor.yml up    # 2. editor on http://localhost:1880
+                                                        # 3. edit, press Deploy
+python3 scripts/normalize.py --write apps/wag-prod/flows.json
+git diff apps/wag-prod/flows.json                       # 4. review — it should be small
+git commit -am "flows(wag-prod): ..." && git push        # 5.
+```
+
+Then in Jenkins: `INSTANCE=wag-prod`, `DRY_RUN=true` to see the diff the pipeline sees, then `DRY_RUN=false`.
+
+Step 1 is not optional. If the instance has drifted, your local edit is against a stale base and the deploy will hit a `409`.
+
+**The editor container cannot double your data.** That is the obvious hazard — a production flow with MQTT and Postgres nodes, opened in a second runtime that reaches the same broker, writes every row twice. `compose/editor.yml` blocks it three ways: no credentials (`flows_cred.json` never leaves its host), no name resolution (DNS points at a black hole), and safe mode so the flow loads without starting. The comments in that file explain the one residual case — a node with a literal IP against an anonymous broker.
+
+### Route B — edit in the browser, then capture
+
+For a test instance, or when the change has to run to be judged. The edit is live immediately, which is the point.
+
+```bash
+python3 scripts/capture.py --instance wag-test --dry-run   # see what would come back
+python3 scripts/capture.py --instance wag-test             # write it into apps/wag-test/
+git diff && git commit -am "flows(wag-test): ..." && git push
+```
+
+`capture.py` writes to the repository and never to an instance. It is also the recovery from a `409`.
+
+### Adding a new flow to an instance that has one
+
+There is no separate procedure. A flow file holds every tab of that instance, so a new flow is a new tab inside `apps/<app>/flows.json`. Use route A: add the tab in the local editor, deploy the whole file.
+
+### Which route for which instance
+
+| | Route |
+|---|---|
+| `*-prod` | A — the instance must not run a half-finished change |
+| `*-test` | B is usually faster; A also works |
+| a brand-new app | A — there is nothing running to conflict with |
+
+Note that `*-prod` and `*-test` on one host are **different applications**, not two stages of one. You cannot develop on test and promote to prod. That is why route A exists.
 
 ## Drift check
 
