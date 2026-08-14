@@ -89,6 +89,36 @@ def build_env(inst: dict, cfg: dict, need_password: bool) -> dict:
     return env
 
 
+def compose_command() -> list[str] | None:
+    """Whatever can run a compose file here — docker or podman, plugin or not.
+
+    The dev container may be provisioned by either, and by podman more often
+    than not on Windows, where VS Code drives it through WSL.
+    """
+    for candidate in (["docker", "compose"], ["podman", "compose"],
+                      ["docker-compose"], ["podman-compose"]):
+        probe = subprocess.run([*candidate, "version"],
+                               capture_output=True, text=True)
+        if probe.returncode == 0:
+            return candidate
+    return None
+
+
+def host_path(path: str) -> str:
+    """A path the container engine can resolve.
+
+    VS Code sets LOCAL_WORKSPACE_FOLDER to the path as the *editor* sees it. On
+    Windows that is `c:\\Users\\...`, which podman running under WSL cannot open —
+    WSL sees the same directory at /mnt/c/Users/... So translate, and leave a
+    POSIX path alone.
+    """
+    m = re.match(r"^([A-Za-z]):[\\/](.*)$", path)
+    if not m:
+        return path
+    drive, rest = m.group(1).lower(), m.group(2).replace("\\", "/")
+    return f"/mnt/{drive}/{rest}"
+
+
 def run(argv: list[str], env: dict | None = None) -> int:
     print(f"\n$ {' '.join(argv)}\n")
     return subprocess.run(argv, cwd=ROOT, env=env).returncode
@@ -114,14 +144,24 @@ def act(action: str, inst: dict | None, cfg: dict) -> int:
               f"Open http://localhost:1880 once it starts. Press Deploy to write\n"
               f"apps/{inst['app']}/flows.json. Stop it with Ctrl-C.\n"
               f"No credentials, no name resolution, safe mode — see compose/editor.yml.\n")
-        # Inside a dev container the docker daemon is the host's, so the bind
-        # mount must name a host path. LOCAL_WORKSPACE_FOLDER is what the dev
-        # container sets to that path; outside one it is unset and the compose
-        # file falls back to its own relative path.
+        # Inside a dev container the container engine is the host's, so the
+        # bind mount must name a path that engine can resolve. Outside one,
+        # LOCAL_WORKSPACE_FOLDER is unset and the compose file falls back to
+        # its own relative path.
         env = {**os.environ, "APP": inst["app"]}
-        if os.environ.get("LOCAL_WORKSPACE_FOLDER"):
-            env["REPO_ROOT"] = os.environ["LOCAL_WORKSPACE_FOLDER"]
-        return run(["docker", "compose", "-f", "compose/editor.yml", "up"], env)
+        workspace = os.environ.get("LOCAL_WORKSPACE_FOLDER")
+        if workspace:
+            env["REPO_ROOT"] = host_path(workspace)
+
+        compose = compose_command()
+        if not compose:
+            print(f"No container engine is reachable from here.\n\n"
+                  f"Run the editor from a host terminal instead:\n\n"
+                  f"    cd {host_path(workspace) if workspace else '<repo>'}\n"
+                  f"    APP={inst['app']} docker compose -f compose/editor.yml up\n\n"
+                  f"Then open http://localhost:1880.", file=sys.stderr)
+            return 1
+        return run([*compose, "-f", "compose/editor.yml", "up"], env)
 
     env = build_env(inst, cfg, need_password=True)
     script = {"check": "drift-check.py", "capture": "capture.py", "deploy": "deploy.py"}[action]
