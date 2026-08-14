@@ -1,6 +1,6 @@
 {
   "name": "dap-node-red",
-  "image": "mcr.microsoft.com/devcontainers/python:3.13-bookworm",
+  "image": "mcr.microsoft.com/devcontainers/python:3.14-bookworm",
 
   "features": {
     // The local Node-RED editor runs as a container, started from inside this
