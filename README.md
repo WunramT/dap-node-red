@@ -27,7 +27,10 @@ Two transports, both versioned:
 | `apps/*/package.json` + `Dockerfile` | done — 11 apps, palette versions as installed |
 | `deploy.py` + tests | done — pending a run against a real instance |
 | `drift-check.py` + tests | done — read-only sweep, JSON report |
-| `Jenkinsfile` | still the template's; holds the host map the new pipeline needs |
+| `capture.py` | done — the instance-to-Git return path |
+| `compose/editor.yml` | done — local editor, isolated from the brokers |
+| Image build jobs | done — 11 build + sign jobs, generated from `registry.yml` |
+| `Jenkinsfile` | done — deploy-only, first run green against `wag-prod` |
 
 ```bash
 pip install -r scripts/requirements.txt
@@ -47,4 +50,4 @@ python3 scripts/collect-inventory.py
 `collect-inventory.py` reports the existence of `credentialSecret`, `adminAuth` and any
 FlowFuse token, never their values.
 
-The `Jenkinsfile` is still the one inherited from the project template. It holds the host and credential map the new deployment pipeline needs, so it stays until that pipeline replaces it.
+Changing a flow: [`docs/runbook.md`](docs/runbook.md), "Changing a flow".
