@@ -33,6 +33,18 @@ Two transports, both versioned:
 | Image build jobs | done — 11 build + sign jobs, generated from `registry.yml` |
 | `Jenkinsfile` | done — deploy-only, first run green against `wag-prod` |
 
+Day to day, one entry point:
+
+```bash
+python3 scripts/nr.py            # pick an instance, pick an action
+python3 scripts/nr.py status     # which instances still match Git
+```
+
+In VS Code: **Terminal → Run Task → Node-RED: …**. `.devcontainer/` has Python, the
+dependencies and Docker access for the local editor.
+
+The individual commands:
+
 ```bash
 pip install -r scripts/requirements.txt
 
