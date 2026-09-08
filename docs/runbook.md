@@ -173,9 +173,7 @@ python3 scripts/nr.py status     # every instance: does it still match Git?
 python3 scripts/nr.py edit wag-prod
 ```
 
-In VS Code the same actions are tasks — **Terminal → Run Task → Node-RED: …**. The dev container in `.devcontainer/` brings Python and the dependencies.
-
-The editor is a second container, so the dev container needs to reach a container engine. `nr.py` probes for `docker compose`, `podman compose` and the standalone binaries; if none answers it prints the command to run from a host terminal instead. It also translates the workspace path — VS Code reports it as `c:\Users\...`, which podman under WSL cannot open, and the same directory is at `/mnt/c/Users/...` there.
+In VS Code the same actions are tasks — **Terminal → Run Task → Node-RED: …**. The dev container in `.devcontainer/` brings Python, the dependencies and access to Docker for the editor container.
 
 Where each instance answers and the login for it go in a gitignored `nr.local.json`; copy `nr.local.example.json`. A password left out is asked for at the prompt and is not stored.
 

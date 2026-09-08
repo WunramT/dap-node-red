@@ -4,21 +4,15 @@
 
   "features": {
     // The local Node-RED editor runs as a container, started from inside this
-    // one. Outside-of-docker shares the host engine, so the bind mount in
+    // one. Outside-of-docker shares the host daemon, so the bind mount in
     // compose/editor.yml resolves against the host filesystem — with
     // docker-in-docker it would resolve inside the dev container and mount an
     // empty directory over the app.
-    //
-    // Where the host runs podman rather than docker, this feature may not find
-    // a socket. scripts/nr.py probes for docker, podman and the standalone
-    // compose binaries, and prints the host command to run if none answers.
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
     "ghcr.io/devcontainers/features/git:1": {}
   },
 
-  // safe.directory first: the workspace is owned by the host user, not by
-  // `vscode`, so without it git refuses every command with "dubious ownership".
-  "postCreateCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} && pip install --user -r scripts/requirements.txt && python3 scripts/validate-registry.py --emit-json && echo && echo 'Ready. Start with: python3 scripts/nr.py'",
+  "postCreateCommand": "pip install --user -r scripts/requirements.txt && python3 scripts/validate-registry.py --emit-json",
 
   "forwardPorts": [1880],
   "portsAttributes": {
