@@ -1,0 +1,47 @@
+{
+  "name": "dap-node-red",
+  "image": "mcr.microsoft.com/devcontainers/python:3.14-bookworm",
+
+  "features": {
+    // The local Node-RED editor runs as a container, started from inside this
+    // one. Outside-of-docker shares the host daemon, so the bind mount in
+    // compose/editor.yml resolves against the host filesystem — with
+    // docker-in-docker it would resolve inside the dev container and mount an
+    // empty directory over the app.
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  "postCreateCommand": "pip install --user -r scripts/requirements.txt && python3 scripts/validate-registry.py --emit-json",
+
+  "forwardPorts": [1880],
+  "portsAttributes": {
+    "1880": { "label": "Node-RED editor", "onAutoForward": "silent" }
+  },
+
+  "containerEnv": {
+    // compose/editor.yml mounts ../apps/$APP relative to itself. Inside this
+    // container that path is the workspace; the docker daemon on the host needs
+    // the host path, which this supplies.
+    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "redhat.vscode-yaml",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "yaml.schemas": {
+          "./schemas/registry.schema.json": "registry.yml"
+        },
+        "files.associations": { "Jenkinsfile": "groovy" },
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
+      }
+    }
+  },
+
+  "remoteUser": "vscode"
+}

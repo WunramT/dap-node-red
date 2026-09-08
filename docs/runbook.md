@@ -75,6 +75,33 @@ ssh <host> "docker compose -f <compose_file> config --services"
 
 Either way, every compose call names its service — `docker compose up -d <compose_service>`. That costs nothing and holds whichever answer comes back.
 
+## Jenkins credentials
+
+Three sets, all **Global** scope. The id must match `registry.yml` exactly; it is case-sensitive.
+
+| Id | Kind | Holds |
+|---|---|---|
+| `<host>_pw` | Username with password | the SSH login for that server |
+| `nodered-<instance>-auth` | Username with password | that instance's `adminAuth` user and password |
+| `nodered-<instance>-credsecret` | **Secret text** | that instance's `credentialSecret` — one value, no username |
+
+**Host logins.** Ten, one per server. Eight already exist from the inherited pipeline; `wfm-svr-lin01_pw` and `dpn-svr-iot_pw` are new, because those two hosts were missing from the old map.
+
+**Admin API logins.** Twelve, not fourteen: `slu-prod` and `slu-test` carry `app: null`, so the pipeline never deploys to them and never asks for their credential.
+
+```
+nodered-cho-prod-auth    nodered-jan-prod-auth    nodered-wag-prod-auth
+nodered-cho-test-auth    nodered-jan-test-auth    nodered-wag-test-auth
+nodered-gor-prod-auth    nodered-srem-prod-auth   nodered-wfm-prod-auth
+nodered-gor-test-auth    nodered-srem-test-auth   nodered-wfm-test-auth
+```
+
+`nodered-wfm-prod-auth` cannot be created usefully yet: `wfm-prod` has `adminAuth` switched off. Jenkins fails on a credential id that does not exist — that is how the first fleet-wide run died — so switch `adminAuth` on first (decision 13), then create the credential with the same user and password. `wfm-test` is new, so its `adminAuth` is set up from the start and its credential can be created straight away.
+
+The two FlowFuse servers need no credential at all yet, and neither does `pod-svr-lin01_pw` or `dpn-svr-iot_pw`. Those instances are not in `registry.yml` (decision 12), so the pipeline never resolves a credential for them. They enter after the migration, in this order: copy the flow, start the plain container, **unenroll the device**, retire the agent. Unenrolling last would let the agent overwrite the flow from the platform.
+
+**Credential secrets.** Fourteen, created during the backup gate from the value each instance **already** has — except `wfm-test`, which is new, so its value is generated once rather than pinned. No script reads them today — they are the copy of the key that lives off the server, and the key itself stays in `settings.js` on the host. A freshly invented value re-encrypts every stored credential into garbage.
+
 ## Flow deploy
 
 ```
@@ -138,11 +165,70 @@ python3 scripts/drift-check.py --all --json inventory/drift.json
 3. Update `image_tag` in `registry.yml` to the new exact tag.
 4. Jenkins recreates that one service. This restarts the container; the ingest gap is expected here.
 
-## Local editor container
+## Changing a flow
 
-A Node-RED container mounting `apps/<app>/` as `/data`. The editor writes into the working tree, so the manual copy step from browser to repo disappears.
+`scripts/nr.py` wraps everything below. It reads the instance list from `registry.yml`, so it cannot list an instance that does not exist or miss one that does.
 
-Build this early — it pays off before any pipeline exists, and it is what makes editor-valid committed flows (decision 6) practically true rather than aspirational.
+```bash
+python3 scripts/nr.py            # pick an instance, pick an action
+python3 scripts/nr.py status     # every instance: does it still match Git?
+python3 scripts/nr.py edit wag-prod
+```
+
+In VS Code the same actions are tasks — **Terminal → Run Task → Node-RED: …**. The dev container in `.devcontainer/` brings Python, the dependencies and access to Docker for the editor container.
+
+Where each instance answers and the login for it go in a gitignored `nr.local.json`; copy `nr.local.example.json`. A password left out is asked for at the prompt and is not stored.
+
+`nr.py deploy` is dry-run only, on purpose. A real deploy is a reviewed commit that Jenkins carries out; a local script that could write to production would make that path optional.
+
+The commands underneath, if you want them directly:
+
+Two routes. Which one is right depends on whether the instance may run the change while you make it.
+
+### Route A — edit locally, then deploy
+
+For a production flow, or a new flow. Nothing runs while you work.
+
+```bash
+python3 scripts/drift-check.py --instance wag-prod     # 1. confirm Git matches the instance
+APP=wag-prod docker compose -f compose/editor.yml up    # 2. editor on http://localhost:1880
+                                                        # 3. edit, press Deploy
+python3 scripts/normalize.py --write apps/wag-prod/flows.json
+git diff apps/wag-prod/flows.json                       # 4. review — it should be small
+git commit -am "flows(wag-prod): ..." && git push        # 5.
+```
+
+Then in Jenkins: `INSTANCE=wag-prod`, `DRY_RUN=true` to see the diff the pipeline sees, then `DRY_RUN=false`.
+
+Step 1 is not optional. If the instance has drifted, your local edit is against a stale base and the deploy will hit a `409`.
+
+**The editor container cannot double your data.** That is the obvious hazard — a production flow with MQTT and Postgres nodes, opened in a second runtime that reaches the same broker, writes every row twice. `compose/editor.yml` blocks it three ways: no credentials (`flows_cred.json` never leaves its host), no name resolution (DNS points at a black hole), and safe mode so the flow loads without starting. The comments in that file explain the one residual case — a node with a literal IP against an anonymous broker.
+
+### Route B — edit in the browser, then capture
+
+For a test instance, or when the change has to run to be judged. The edit is live immediately, which is the point.
+
+```bash
+python3 scripts/capture.py --instance wag-test --dry-run   # see what would come back
+python3 scripts/capture.py --instance wag-test             # write it into apps/wag-test/
+git diff && git commit -am "flows(wag-test): ..." && git push
+```
+
+`capture.py` writes to the repository and never to an instance. It is also the recovery from a `409`.
+
+### Adding a new flow to an instance that has one
+
+There is no separate procedure. A flow file holds every tab of that instance, so a new flow is a new tab inside `apps/<app>/flows.json`. Use route A: add the tab in the local editor, deploy the whole file.
+
+### Which route for which instance
+
+| | Route |
+|---|---|
+| `*-prod` | A — the instance must not run a half-finished change |
+| `*-test` | B is usually faster; A also works |
+| a brand-new app | A — there is nothing running to conflict with |
+
+Note that `*-prod` and `*-test` on one host are **different applications**, not two stages of one. You cannot develop on test and promote to prod. That is why route A exists.
 
 ## Drift check
 

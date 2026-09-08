@@ -18,6 +18,15 @@
 //
 // Requires the SSH Pipeline Steps and Pipeline Utility Steps plugins.
 
+import groovy.transform.Field
+
+// Shared across stages. @Field declares them properly; assigning to an
+// undeclared name at script level makes Jenkins warn about memory leaks on
+// every run, and the warning is right.
+@Field def REGISTRY = null
+@Field def TARGETS = []
+@Field def VISITED = []
+
 pipeline {
     agent any
 
@@ -114,11 +123,9 @@ pipeline {
                 // removed from the workspace and from every host it reached,
                 // whatever happened above.
                 sh 'rm -f deploy.env registry.json || true'
-                if (binding.hasVariable('VISITED')) {
-                    VISITED.each { remote ->
-                        sshCommand remote: remote, failOnError: false,
-                                   command: "rm -rf ${REMOTE_DIR}"
-                    }
+                VISITED.each { remote ->
+                    sshCommand remote: remote, failOnError: false,
+                               command: "rm -rf ${REMOTE_DIR}"
                 }
             }
         }
@@ -149,7 +156,6 @@ void deployInstance(Map inst, Map hosts) {
             allowAnyHosts: hostConfig.allowAnyHosts,
             user: REMOTE_USR, password: REMOTE_PSW,
         ]
-        if (!binding.hasVariable('VISITED')) { VISITED = [] }
         if (!VISITED.any { it.host == remote.host }) { VISITED << remote }
 
         // deploy.py takes credentials from the environment, never from an

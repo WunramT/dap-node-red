@@ -1,0 +1,64 @@
+// Copy to nr.local.json and fill in. That file is gitignored.
+// A password left out is asked for at the prompt and is not stored.
+// Where each instance answers: docs/runbook.md, 'Reaching an instance from a workstation'.
+{
+  "cho-prod": {
+    "url": "http://cho-svr-lin01:1880",
+    "user": "admin"
+  },
+  "cho-test": {
+    "url": "http://cho-svr-lin01:1881",
+    "user": "admin"
+  },
+  "gor-prod": {
+    "url": "http://gor-svr-lin01:1881",
+    "user": "admin"
+  },
+  "gor-test": {
+    "url": "http://gor-svr-lin01:1880",
+    "user": "admin"
+  },
+  "jan-prod": {
+    "url": "http://jan-svr-lin01:1880",
+    "user": "admin"
+  },
+  "jan-test": {
+    "url": "http://jan-svr-lin01:1881",
+    "user": "admin"
+  },
+  "slu-prod": {
+    "url": "",
+    "user": "admin",
+    "_note": "no published port \u2014 reachable only from its host"
+  },
+  "slu-test": {
+    "url": "http://slu-svr-lin02:1882",
+    "user": "admin"
+  },
+  "srem-prod": {
+    "url": "",
+    "user": "admin",
+    "_note": "no published port \u2014 reachable only from its host"
+  },
+  "srem-test": {
+    "url": "",
+    "user": "admin",
+    "_note": "no published port \u2014 reachable only from its host"
+  },
+  "wag-prod": {
+    "url": "http://wag-svr-lin01",
+    "user": "admin"
+  },
+  "wag-test": {
+    "url": "http://wag-svr-lin01",
+    "user": "admin"
+  },
+  "wfm-prod": {
+    "url": "http://wfm-svr-lin01:1880",
+    "user": "admin"
+  },
+  "wfm-test": {
+    "url": "http://wfm-svr-lin01:1881",
+    "user": "admin"
+  }
+}

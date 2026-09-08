@@ -36,6 +36,9 @@ include:
       job_name: scan:hadolint
       dockerfile: '**/Dockerfile*'
       allow_failure: true
+  # One build and one sign job per app. Generated from registry.yml so that the
+  # tag CI builds and the tag the deploy pins cannot diverge.
+  - local: 'apps/build-image-pipeline.yml'
 
 scan:semgrep:
   rules:
@@ -58,6 +61,9 @@ validate:registry:
     # No --draft: every image tag and credential id is filled in, so a
     # placeholder reappearing is a mistake and fails the pipeline.
     - python3 scripts/validate-registry.py --emit-json
+    # The generated pipeline carries registry.yml's image tags. If it is stale,
+    # CI would build one tag while the deploy pins another.
+    - python3 scripts/gen-image-pipeline.py --check
   artifacts:
     # Jenkins ships this to the target host with deploy.py — see decision 10.
     paths: [registry.json]
@@ -71,6 +77,11 @@ validate:registry:
 validate:normalize:
   stage: Validate
   image: python:3.13-slim
+  before_script:
+    # test_deploy.py reads the registry, which needs PyYAML unless registry.json
+    # was generated first. Installing here keeps the job independent of whether
+    # validate:registry ran.
+    - pip install --no-cache-dir -r scripts/requirements.txt
   script:
     - python3 scripts/test_normalize.py
     - python3 scripts/test_deploy.py
@@ -87,5 +98,3 @@ validate:normalize:
 #
 #   validate:external   — no function node declares its own npm module,
 #                         which is what keeps the baked image a real guarantee
-#   build:buildah:*     — one image per apps/<app>/Dockerfile
-#   sign:cosign:*       — matching the existing image-signing convention

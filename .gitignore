@@ -20,6 +20,8 @@ node_modules/
 # copy. Reports are regenerable — promote what is worth keeping into INVENTORY.md.
 scripts/*.local.py
 hosts.local.json
+# Base URLs and Admin API logins for scripts/nr.py.
+nr.local.json
 inventory/
 registry.draft.yml
 # Generated from registry.yml by validate-registry.py --emit-json, for hosts

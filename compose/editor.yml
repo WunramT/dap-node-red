@@ -1,0 +1,56 @@
+# A local Node-RED editor that writes straight into the working tree.
+#
+#   APP=wag-prod docker compose -f compose/editor.yml up
+#
+# Or, which also fills in REPO_ROOT inside a dev container:
+#
+#   python3 scripts/nr.py edit wag-prod
+#   # then open http://localhost:1880
+#
+# The editor writes apps/$APP/flows.json when you press Deploy. That removes
+# the manual copy step between the browser and the repository, which is what
+# keeps committed flows editor-valid in practice rather than in principle.
+#
+# ---------------------------------------------------------------------------
+# Why this container cannot double your data
+# ---------------------------------------------------------------------------
+# A real flow contains live nodes. Open a production flow in a container that
+# can reach the brokers, press Deploy, and you now have two runtimes consuming
+# the same MQTT topic and writing the same rows to Postgres. Three separate
+# things stop that here, because one is not enough:
+#
+#   1. No credentials. flows_cred.json never leaves its host and is gitignored,
+#      so every node needing a login cannot authenticate. This is the strongest
+#      of the three and it comes free from the architecture.
+#   2. No name resolution. dns points at a black hole and dns_search is empty,
+#      so no broker or database hostname resolves. Nodes go red in the editor.
+#      That is the intended appearance, not a fault.
+#   3. Safe mode. The runtime loads the flow but does not start it. This covers
+#      the window before you press Deploy; after a Deploy the flows do start,
+#      which is why it is the weakest of the three and not the only one.
+#
+# The residual risk is a node configured with a literal IP address and a broker
+# that accepts anonymous connections. Check for that before you open a flow you
+# do not know. For a flow you are writing from scratch there is no risk at all.
+#
+# ---------------------------------------------------------------------------
+
+services:
+  editor:
+    image: nodered/node-red:${NODE_RED_VERSION:-5.0.1}
+    container_name: node-red-editor
+    ports:
+      - "127.0.0.1:1880:1880"     # localhost only — not reachable from the network
+    volumes:
+      # REPO_ROOT is empty outside a dev container, so this stays the relative
+      # path next to this file. Inside a dev container the docker daemon runs on
+      # the host and cannot see /workspaces/..., so scripts/nr.py sets REPO_ROOT
+      # to the host path and the mount resolves there instead.
+      - ${REPO_ROOT:-..}/apps/${APP:?set APP to an app directory, e.g. APP=wag-prod}:/data
+    environment:
+      # Load the flow, do not run it.
+      NODE_RED_ENABLE_SAFE_MODE: "true"
+    dns:
+      - 127.0.0.1                 # nothing outside this container resolves
+    dns_search: []
+    restart: "no"

@@ -57,9 +57,11 @@ base/Dockerfile   pinned nodered/node-red:<version> — see Version spread
 compose/          per-instance compose fragments
 registry.yml      instance inventory — see registry.md
 schemas/          JSON Schema for registry.yml
+compose/editor.yml  a local editor that writes into the working tree
 scripts/
   normalize.py    canonicalize flows.json
   deploy.py       token → GET /flows → rev → POST /flows
+  capture.py      the return path: running flow → apps/<app>/flows.json
   drift-check.py  read-only: running flows vs. Git
 docs/             this directory
 INVENTORY.md      inventory output, secrets stripped
@@ -121,7 +123,7 @@ The compose file differs per host (`code/node-red/`, `energy/`, `Base_Container/
 
 | Fact | Value | Consequence |
 |---|---|---|
-| Node-RED versions | **4.0.5, 4.0.9, 5.0.1** | only `wag` runs 5.0.1; 11 of 13 are on 4.x. Pinning is not one tag — see "Version spread" below |
+| Node-RED versions | **4.0.5, 4.0.9, 5.0.1** | only `wag` runs 5.0.1; 12 of 14 are on 4.x. Pinning is not one tag — see "Version spread" below |
 | Image tag in use | `nodered/node-red:latest` | must be pinned; `latest` + `restart: always` drifts silently per host |
 | `credentialSecret` | commented out | generated key exists only in `/data/.config.runtime.json`; single copy, in no backup |
 | `flows_cred.json` | present on both | real credentials in use; undecryptable without that key file |
@@ -153,13 +155,15 @@ The estate runs three Node-RED versions, because every instance pulls `nodered/n
 | 4.0.9 | `jan-prod`, `jan-test`, `slu-prod`, `slu-test`, `srem-prod`, `srem-test`, `wfm-prod`, `wfm-test` |
 | 5.0.1 | `wag-prod`, `wag-test` |
 
-Pinning (decision 5) is therefore not one tag for everything. Pin each instance to **the version it is already running**, so the pin changes nothing except the drift. Converging on one version is an upgrade — 11 instances crossing a major boundary — and it belongs in its own change, after the pipeline exists and can roll one instance at a time.
+Pinning (decision 5) is therefore not one tag for everything. Pin each instance to **the version it is already running**, so the pin changes nothing except the drift. Converging on one version is an upgrade — 12 instances crossing a major boundary — and it belongs in its own change, after the pipeline exists and can roll one instance at a time.
 
 That also explains group 3 in the settings.js comparison: `wag`'s file carries `telemetry` and `globalFunctionTimeout` blocks because 5.0.1 generated it, not because anyone edited it.
 
 ## Empty instances
 
-`slu-prod` and `slu-test` hold no flow at all — no `flows.json`, no `flows_cred.json`, `/data` untouched since July 2025. They are running containers with nothing in them. They carry `app: null` in `registry.yml` and get no `apps/` directory until someone decides what they are for.
+`slu-prod` and `slu-test` hold no flow at all — no `flows.json`, no `flows_cred.json`, `/data` untouched since July 2025. They are **running**, with `adminAuth` on and answering `401`; they are not stopped, they are empty. Starting them changes nothing, because there is nothing in them to start.
+
+They carry `app: null` in `registry.yml` and get no `apps/` directory until someone decides what they are for. When that happens they are the safest first true deploy in the estate: an empty instance has nothing to lose.
 
 That makes **12 instances with a flow of their own**, not 14 — the twelfth being `wfm-test`, whose flow is new rather than captured.
 
@@ -197,9 +201,17 @@ Palette is FlowFuse-managed: whatever it installs per project becomes that app's
 
 Sequencing: migrate a plain-container pair first. It proves normalize → commit → deploy end to end against the simpler case, and the FlowFuse cutover then only adds the export step to a path that already works.
 
+## The two directions
+
+Git to instance is `deploy.py`. Instance to Git is `capture.py`. Both share one transport and one normalizer, so what one writes the other reads back unchanged — the inventory proved that against `wag-prod` and `gor-prod`.
+
+The return direction is what keeps this from decaying. A pipeline that only pushes makes a browser edit into a problem, and people learn to stop using the browser. With `capture.py` a browser edit is a commit, and the editor stays a legitimate tool.
+
+`compose/editor.yml` closes the loop locally: a Node-RED container mounting `apps/<app>/` as `/data`, so pressing Deploy in the editor writes the repository file. It runs without credentials, without name resolution and in safe mode, because a production flow opened in a second live runtime would consume the same MQTT topic and write the same rows twice. See [`runbook.md`](runbook.md).
+
 ## Visibility
 
-There is no way to see, today, what is actually running on 15 runtimes across 10 servers. That gap is real and worth closing — as a **report**, not a control plane.
+There is no way to see, today, what is actually running on 16 runtimes across 10 servers. That gap is real and worth closing — as a **report**, not a control plane.
 
 `drift-check.py` sweeps every instance, normalizes what it gets, diffs against Git, and emits JSON. CI renders that JSON into a static HTML page and publishes it. It answers the questions that matter — which instances match Git, which drifted, which flow version and image tag each one runs, when it was last deployed — and it answers them from Git plus a read-only sweep.
 

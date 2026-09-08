@@ -17,7 +17,6 @@ Two transports, both versioned:
 | [`docs/runbook.md`](docs/runbook.md) | backup gate, `credentialSecret` pinning, deploy, `409` recovery, drift check |
 | [`docs/open-questions.md`](docs/open-questions.md) | what is still unknown, and the command that answers it |
 | [`docs/go-live-plan.md`](docs/go-live-plan.md) | the remaining steps to a live, team-visible pipeline |
-| [`docs/gitlab-ci-build-snippet.yml`](docs/gitlab-ci-build-snippet.yml) | the per-app build and sign jobs to paste into `.gitlab-ci.yml` |
 
 ## Status
 
@@ -29,8 +28,22 @@ Two transports, both versioned:
 | `apps/*/package.json` + `Dockerfile` | done — 12 apps, palette versions as installed |
 | `deploy.py` + tests | done — dry-run verified against 10 live instances |
 | `drift-check.py` + tests | done — read-only sweep, JSON report |
-| `Jenkinsfile` | replaced — deploy-only, dry-run verified; palette path still untested |
+| `capture.py` | done — the instance-to-Git return path |
+| `compose/editor.yml` | done — local editor, isolated from the brokers |
+| Image build jobs | done — 12 build + sign jobs, generated from `registry.yml`, three at a time |
+| `Jenkinsfile` | done — deploy-only, first run green against `wag-prod` |
 
+Day to day, one entry point:
+
+```bash
+python3 scripts/nr.py            # pick an instance, pick an action
+python3 scripts/nr.py status     # which instances still match Git
+```
+
+In VS Code: **Terminal → Run Task → Node-RED: …**. `.devcontainer/` has Python, the
+dependencies and Docker access for the local editor.
+
+The individual commands:
 ```bash
 pip install -r scripts/requirements.txt
 
@@ -49,4 +62,4 @@ python3 scripts/collect-inventory.py
 `collect-inventory.py` reports the existence of `credentialSecret`, `adminAuth` and any
 FlowFuse token, never their values.
 
-The `Jenkinsfile` is the deploy-only pipeline that replaced the inherited one. It carries the host map and the per-host credential ids from the template, and it reads `registry.yml` rather than repeating what runs where.
+Changing a flow: [`docs/runbook.md`](docs/runbook.md), "Changing a flow".
