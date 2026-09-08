@@ -17,6 +17,7 @@ Two transports, both versioned:
 | [`docs/runbook.md`](docs/runbook.md) | backup gate, `credentialSecret` pinning, deploy, `409` recovery, drift check |
 | [`docs/open-questions.md`](docs/open-questions.md) | what is still unknown, and the command that answers it |
 | [`docs/go-live-plan.md`](docs/go-live-plan.md) | the remaining steps to a live, team-visible pipeline |
+| [`docs/gitlab-ci-build-snippet.yml`](docs/gitlab-ci-build-snippet.yml) | the per-app build and sign jobs to paste into `.gitlab-ci.yml` |
 
 ## Status
 
