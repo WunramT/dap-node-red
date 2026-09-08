@@ -37,7 +37,7 @@ Look for the agent's config (`device.yml` or similar) and for a `credentialSecre
 
 `credential_secret_id` in particular cannot be created before the backup gate, because it must hold each instance's **existing** generated key. Creating it from a fresh value re-encrypts every stored credential into garbage. Order matters here — [`runbook.md`](runbook.md).
 
-`wfm` needs a decision before a credential: its `adminAuth` is off, so there is nothing to authenticate against yet.
+`wfm-prod` needs its `adminAuth` switched on before a credential can exist: it is off, so there is nothing to authenticate against yet. `wfm-test` is new, so its `adminAuth` and both credentials are set up from scratch — that is the pair the pipeline is proven against first.
 
 **Unblocks:** any real deploy.
 
@@ -55,7 +55,7 @@ If prod is genuinely unmigrated, it is the ideal first target — nothing to los
 |---|---|---|
 | The palette versions? | Collected from the running instances; all 11 apps carry a `package.json` and a `Dockerfile` | `apps/` |
 | Harbor project for the images? | `dap-node-red` exists. Tags are `<registry>/dap-node-red/<app>:<node-red-version>-<palette build>`, filled in for all 13 | `registry.yml` |
-| The two settings.js deviations? | Both normalized to what the others do — `wfm` gets `adminAuth`, `cho-prod` goes back to `level: "info"`. One settings.js in the repo | decision 13 |
+| The two settings.js deviations? | Both normalized to what the others do — `wfm-prod` gets `adminAuth`, `cho-prod` goes back to `level: "info"`. One settings.js in the repo | decision 13 |
 | What is every instance's admin root? | Probed on all 13: 8 on `/node-red-prod` or `/node-red-test`, 5 on plain `/`. All in `registry.yml` | [`architecture.md`](architecture.md) |
 | Which Node-RED versions are running? | Three — 4.0.5, 4.0.9, 5.0.1. Pin each instance to its current version first; converging is a separate upgrade | [`architecture.md`](architecture.md) |
 | Are the settings.js files the same file? | Yes — one template plus env overrides is viable. The literal text differs by whitespace, comment state and settings.js vintage; the real config differences are three, listed below | [`architecture.md`](architecture.md) |

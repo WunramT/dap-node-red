@@ -1,6 +1,6 @@
 # dap-node-red
 
-Deployment for 15 Node-RED runtimes across 10 servers — 13 plain instances, 2 under FlowFuse awaiting migration. Git holds the flows, CI deploys them.
+Deployment for 16 Node-RED runtimes across 10 servers — 14 plain instances, 2 under FlowFuse awaiting migration. Git holds the flows, CI deploys them.
 
 Two transports, both versioned:
 
@@ -23,12 +23,12 @@ Two transports, both versioned:
 | | |
 |---|---|
 | `registry.yml` + schema + validator | done — validates clean, no placeholders left |
-| `normalize.py` + tests | done — validated against all 11 real flows |
-| `apps/*/flows.json` | done — 11 apps, normalized |
-| `apps/*/package.json` + `Dockerfile` | done — 11 apps, palette versions as installed |
-| `deploy.py` + tests | done — pending a run against a real instance |
+| `normalize.py` + tests | done — validated against all 11 captured flows |
+| `apps/*/flows.json` | done — 12 apps, normalized |
+| `apps/*/package.json` + `Dockerfile` | done — 12 apps, palette versions as installed |
+| `deploy.py` + tests | done — dry-run verified against 10 live instances |
 | `drift-check.py` + tests | done — read-only sweep, JSON report |
-| `Jenkinsfile` | still the template's; holds the host map the new pipeline needs |
+| `Jenkinsfile` | replaced — deploy-only, dry-run verified; palette path still untested |
 
 ```bash
 pip install -r scripts/requirements.txt
@@ -48,4 +48,4 @@ python3 scripts/collect-inventory.py
 `collect-inventory.py` reports the existence of `credentialSecret`, `adminAuth` and any
 FlowFuse token, never their values.
 
-The `Jenkinsfile` is still the one inherited from the project template. It holds the host and credential map the new deployment pipeline needs, so it stays until that pipeline replaces it.
+The `Jenkinsfile` is the deploy-only pipeline that replaced the inherited one. It carries the host map and the per-host credential ids from the template, and it reads `registry.yml` rather than repeating what runs where.

@@ -30,7 +30,7 @@ pipeline {
             'slu-prod', 'slu-test',
             'srem-prod', 'srem-test',
             'wag-prod', 'wag-test',
-            'wfm',
+            'wfm-prod', 'wfm-test',
         ])
         booleanParam(name: 'DRY_RUN', defaultValue: true,
             description: 'Print the diff and change nothing. Leave on until the diff is what you expect.')

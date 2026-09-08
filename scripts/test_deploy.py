@@ -91,12 +91,12 @@ print("deploy.py")
 
 # --- registry is readable, and the target resolves --------------------------
 instances = load_instances()
-check("registry loads", len(instances) == 13, str(len(instances)))
-check("instance names are unique", len({i["name"] for i in instances}) == 13)
+check("registry loads", len(instances) == 14, str(len(instances)))
+check("instance names are unique", len({i["name"] for i in instances}) == 14)
 WAG = wag = next(i for i in instances if i["name"] == "wag-prod")
 check("admin_root read correctly", wag["admin_root"] == "/node-red-prod", wag.get("admin_root"))
 check("empty admin_root stays empty",
-      next(i for i in instances if i["name"] == "wfm")["admin_root"] == "")
+      next(i for i in instances if i["name"] == "wfm-prod")["admin_root"] == "")
 check("credential env naming", env_credentials("nodered-x-auth") is None)
 check("no CHANGEME placeholder survives in the registry",
       not any("CHANGEME" in str(v) for i in instances for v in i.values()))

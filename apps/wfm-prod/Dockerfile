@@ -9,6 +9,6 @@ FROM docker.io/nodered/node-red:4.0.9
 #
 # The path is repo-root relative because the buildah component builds with the
 # repository as the context and passes only --file. Build it by hand the same
-# way: docker build -f apps/wfm/Dockerfile .
-COPY apps/wfm/package.json /usr/src/node-red/package.json
+# way: docker build -f apps/wfm-prod/Dockerfile .
+COPY apps/wfm-prod/package.json /usr/src/node-red/package.json
 RUN npm install --no-audit --no-fund --no-update-notifier --omit=dev

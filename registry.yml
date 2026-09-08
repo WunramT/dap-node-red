@@ -179,19 +179,39 @@ instances:
     variables: {}
 
   # --- wfm-svr-lin01 --------------------------------------------------------
-  # adminAuth was off — the probe returned 200, not 401 — on a host that
-  # publishes 1880. Being switched on with the credentialSecret pin
+  # The host ran a single unqualified instance called node-red. It is now the
+  # prod half of a pair, so it is named like every other prod instance in the
+  # estate, and node-red-test joins it as the sandbox the pipeline is proven
+  # against before a prod deploy.
+  #
+  # adminAuth was off on prod — the probe returned 200, not 401 — on a host
+  # that publishes 1880. Being switched on with the credentialSecret pin
   # (decision 13); until then deploy.py has nothing to authenticate against.
-  - name: wfm
+  - name: wfm-prod
     host: wfm-svr-lin01
     compose_service: node-red
     compose_file: /home/administrator/Base_Container/docker-compose.yml
-    app: wfm
+    app: wfm-prod
     admin_root: ""
-    auth_credential_id: nodered-wfm-auth
-    credential_secret_id: nodered-wfm-credsecret
+    auth_credential_id: nodered-wfm-prod-auth
+    credential_secret_id: nodered-wfm-prod-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
-    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/wfm:4.0.9-1  # running node-red 4.0.9, 19 nodes, node-red-contrib-opcua
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/wfm-prod:4.0.9-1  # running node-red 4.0.9, 19 nodes, node-red-contrib-opcua
+    variables: {}
+
+  # New instance, so nothing here is measured yet: the Node-RED version and the
+  # palette match prod on purpose, so a flow moves between the two without a
+  # palette surprise. Its flow is a deploy proof that touches no other system.
+  - name: wfm-test
+    host: wfm-svr-lin01
+    compose_service: node-red-test
+    compose_file: /home/administrator/Base_Container/docker-compose.yml
+    app: wfm-test
+    admin_root: ""
+    auth_credential_id: nodered-wfm-test-auth
+    credential_secret_id: nodered-wfm-test-credsecret
+    dns_search: [rah.polipol.intra, wag.polipol.intra]
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/wfm-test:4.0.9-1  # node-red 4.0.9 to match prod, node-red-contrib-opcua
     variables: {}
 
   # --- Not in the registry yet ----------------------------------------------

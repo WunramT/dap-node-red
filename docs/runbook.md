@@ -44,7 +44,7 @@ On `cho-prod` additionally, bringing it back to what the other twelve do (decisi
 level: "info",     // was "trace"
 ```
 
-On `wfm` additionally, uncomment the `adminAuth` block. Generate the hash inside the container so the password never reaches the shell history — type it, then Ctrl-D:
+On `wfm-prod` additionally, uncomment the `adminAuth` block (and on the new `wfm-test`, set it up from the start). Generate the hash inside the container so the password never reaches the shell history — type it, then Ctrl-D:
 
 ```bash
 ssh wfm-svr-lin01
@@ -61,7 +61,7 @@ docker compose -f <compose_file> up -d <compose_service>
 
 The compose file and service name differ per host; both are in `registry.yml`.
 
-**4. Verify.** Open the editor and confirm a stored credential still decrypts. On `wfm`, confirm the login prompt appears and that `curl -s -o /dev/null -w '%{http_code}' http://<ip>:1880/flows` now returns `401` rather than `200`.
+**4. Verify.** Open the editor and confirm a stored credential still decrypts. On `wfm-prod`, confirm the login prompt appears and that `curl -s -o /dev/null -w '%{http_code}' http://<ip>:1880/flows` now returns `401` rather than `200`.
 
 ## Compose split
 
@@ -98,7 +98,8 @@ The pipeline runs `deploy.py` on the target host, where every instance is at `ht
 | `jan-prod` | `http://jan-svr-lin01:1880` |
 | `jan-test` | `http://jan-svr-lin01:1881` |
 | `slu-test` | `http://slu-svr-lin02:1882` |
-| `wfm` | `http://wfm-svr-lin01:1880` |
+| `wfm-prod` | `http://wfm-svr-lin01:1880` |
+| `wfm-test` | `http://wfm-svr-lin01:1881` |
 | `srem-prod`, `srem-test`, `slu-prod` | no published port — run on the host |
 
 On `gor` and `jan` the prod and test ports are the reverse of what the names suggest. The table is a snapshot; `collect-inventory.py` re-derives it, and only the host-side path is what the pipeline depends on.
@@ -114,7 +115,8 @@ $env:NODE_RED_BASE_URL_GOR_PROD  = "http://gor-svr-lin01:1881"
 $env:NODE_RED_BASE_URL_GOR_TEST  = "http://gor-svr-lin01:1880"
 $env:NODE_RED_BASE_URL_JAN_PROD  = "http://jan-svr-lin01:1880"
 $env:NODE_RED_BASE_URL_JAN_TEST  = "http://jan-svr-lin01:1881"
-$env:NODE_RED_BASE_URL_WFM       = "http://wfm-svr-lin01:1880"
+$env:NODE_RED_BASE_URL_WFM_PROD  = "http://wfm-svr-lin01:1880"
+$env:NODE_RED_BASE_URL_WFM_TEST  = "http://wfm-svr-lin01:1881"
 
 python3 scripts/drift-check.py --all --json inventory/drift.json
 ```

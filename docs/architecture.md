@@ -4,14 +4,14 @@ Status: target architecture, not yet built. Rationale and closed decisions: [`de
 
 ## The problem
 
-15 Node-RED runtimes across 10 servers. Flows are edited in the browser editor and today reach production by hand. There is no history, no review, and no way to tell what is running.
+16 Node-RED runtimes across 10 servers. Flows are edited in the browser editor and today reach production by hand. There is no history, no review, and no way to tell what is running.
 
 Measured, not assumed — `scripts/collect-inventory.py` visited every host:
 
 | | |
 |---|---|
 | 6 servers with a dev/prod pair | `cho`, `gor`, `jan`, `slu`, `srem`, `wag` — 12 instances |
-| 1 server with a single instance | `wfm-svr-lin01` — one `node-red`, and **no `adminAuth`** |
+| 1 server whose single instance became a pair | `wfm-svr-lin01` — `node-red` (now `wfm-prod`, **no `adminAuth`**) plus a new `node-red-test` |
 | 2 servers under FlowFuse | `pod-svr-lin01`, `dpn-svr-iot` — migration targets, see below |
 | 1 server with no Node-RED at all | `foi-svr-lnx01` — NATS, iot-bridges, dashboards |
 
@@ -77,7 +77,7 @@ SSH is a transport for the script, never a path for writing flow files. The `rev
 
 `scripts/deploy.py`, one instance at a time:
 
-1. `POST <admin_root>/auth/token` → Bearer token. `adminAuth` is active on 12 of 13, so nearly every call needs one. `wfm` has it switched off and answers `200` unauthenticated — `deploy.py` skips the token call where `auth_credential_id` has nothing behind it, and that is a gap to close, not a feature.
+1. `POST <admin_root>/auth/token` → Bearer token. `adminAuth` is active on 12 of 14, so nearly every call needs one. `wfm-prod` has it switched off and answers `200` unauthenticated — `deploy.py` skips the token call where `auth_credential_id` has nothing behind it, and that is a gap to close, not a feature.
 2. `GET <admin_root>/flows` → capture `rev`.
 3. `POST <admin_root>/flows` with header `Node-RED-Deployment-Type: flows` and the captured `rev`.
 4. `409` → abort. The running flow diverged from Git; that must surface as a red pipeline, never be flattened.
@@ -88,7 +88,7 @@ There is no render step between the `GET` and the `POST`: no app is shared, so n
 
 `registry.yml` is YAML and PyYAML may be absent on a host, so CI emits `registry.json` and Jenkins ships it alongside the script. Hand-parsing YAML on the host was the alternative, and a parser wrong in one edge case deploys the wrong flow to the wrong instance.
 
-`admin_root` is per-instance and was probed rather than parsed: 8 instances answer on `/node-red-prod` or `/node-red-test`, and 5 — `gor-prod`, `gor-test`, `jan-prod`, `jan-test`, `wfm` — have no admin root at all and answer on plain `/flows`. In `registry.yml` those carry `admin_root: ""`.
+`admin_root` is per-instance and was probed rather than parsed: 8 instances answer on `/node-red-prod` or `/node-red-test`, and 6 — `gor-prod`, `gor-test`, `jan-prod`, `jan-test`, `wfm-prod`, `wfm-test` — have no admin root at all and answer on plain `/flows`. In `registry.yml` those carry `admin_root: ""`.
 
 Parsing `settings.js` for this field is a trap: Node-RED ships every option present but commented out, so a naive read reports the template's `/admin` default as configured. All five of those instances did, and all five returned `404`.
 
@@ -126,8 +126,8 @@ The compose file differs per host (`code/node-red/`, `energy/`, `Base_Container/
 | `credentialSecret` | commented out | generated key exists only in `/data/.config.runtime.json`; single copy, in no backup |
 | `flows_cred.json` | present on both | real credentials in use; undecryptable without that key file |
 | `httpAdminRoot` | 8 instances on `/node-red-prod` or `/node-red-test`, 5 on `/` | probed, not parsed; API base path is per-instance and 5 instances have none |
-| `adminAuth` | active on 12, **off on `wfm`** | token call required before every API call — except `wfm`, which answers 200 and has nothing to authenticate against |
-| published ports | **mixed** | `cho`, `gor`, `jan` publish 1880/1881, `slu-test` 1882, `wfm` 1880; `wag`, `srem` and `slu-prod` publish nothing. Not a uniform property, so the deploy path cannot rely on one |
+| `adminAuth` | active on 12, **off on `wfm-prod`**, not yet set on the new `wfm-test` | token call required before every API call — except `wfm-prod`, which answers 200 and has nothing to authenticate against |
+| published ports | **mixed** | `cho`, `gor`, `jan` publish 1880/1881, `slu-test` 1882, `wfm-prod` 1880 and `wfm-test` 1881; `wag`, `srem` and `slu-prod` publish nothing. Not a uniform property, so the deploy path cannot rely on one |
 | `flowFilePretty` | `true` | flows already multi-line; the normalizer strips and sorts, it does not reformat |
 | `contextStorage` | commented out | memory-only context; a recreate loses nothing but the restart gap |
 | `functionExternalModules` | `true`, zero nodes using it | image baking is a real guarantee only while that stays zero — hence the CI check |
@@ -150,7 +150,7 @@ The estate runs three Node-RED versions, because every instance pulls `nodered/n
 | Version | Instances |
 |---|---|
 | 4.0.5 | `cho-prod`, `cho-test`, `gor-prod`, `gor-test` |
-| 4.0.9 | `jan-prod`, `jan-test`, `slu-prod`, `slu-test`, `srem-prod`, `srem-test`, `wfm` |
+| 4.0.9 | `jan-prod`, `jan-test`, `slu-prod`, `slu-test`, `srem-prod`, `srem-test`, `wfm-prod`, `wfm-test` |
 | 5.0.1 | `wag-prod`, `wag-test` |
 
 Pinning (decision 5) is therefore not one tag for everything. Pin each instance to **the version it is already running**, so the pin changes nothing except the drift. Converging on one version is an upgrade — 11 instances crossing a major boundary — and it belongs in its own change, after the pipeline exists and can roll one instance at a time.
@@ -161,7 +161,7 @@ That also explains group 3 in the settings.js comparison: `wag`'s file carries `
 
 `slu-prod` and `slu-test` hold no flow at all — no `flows.json`, no `flows_cred.json`, `/data` untouched since July 2025. They are running containers with nothing in them. They carry `app: null` in `registry.yml` and get no `apps/` directory until someone decides what they are for.
 
-That makes **11 instances with real flows**, not 13.
+That makes **12 instances with a flow of their own**, not 14 — the twelfth being `wfm-test`, whose flow is new rather than captured.
 
 ## Normalization
 

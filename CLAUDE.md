@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Node-RED multi-instance deployment. Git holds the flows, CI deploys them. 15 runtimes across 10 servers: 13 plain instances and 2 under FlowFuse, which are migrated to plain containers as part of this project. No two instances share a flow — every one is its own application.
+Node-RED multi-instance deployment. Git holds the flows, CI deploys them. 16 runtimes across 10 servers: 14 plain instances and 2 under FlowFuse, which are migrated to plain containers as part of this project. No two instances share a flow — every one is its own application.
 
 Read before working:
 

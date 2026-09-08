@@ -1,0 +1,71 @@
+[
+  {
+    "id": "b1f4c0a27d3e8a51",
+    "type": "tab",
+    "label": "Pipeline-Test",
+    "info": "Startflow der Testinstanz. Beruehrt kein Fremdsystem: Inject wird\nmanuell ausgeloest, die Function rechnet nur, der Debug-Node schreibt in\ndie Sidebar. Zweck ist der Nachweis, dass ein Deploy aus Git hier ankommt.\n\nSobald das steht, kann dieser Tab durch echte Testflows ersetzt werden.",
+    "disabled": false
+  },
+  {
+    "id": "3c7a1e9b52d04f68",
+    "type": "inject",
+    "z": "b1f4c0a27d3e8a51",
+    "name": "manuell ausloesen",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "payload": "",
+    "payloadType": "date",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "topic": "",
+    "x": 190,
+    "y": 120,
+    "wires": [
+      [
+        "8d2b6f04a1c93e7b"
+      ]
+    ]
+  },
+  {
+    "id": "5e0c8a3f7b21d946",
+    "type": "debug",
+    "z": "b1f4c0a27d3e8a51",
+    "name": "Ergebnis",
+    "active": true,
+    "complete": "payload",
+    "console": false,
+    "statusType": "auto",
+    "statusVal": "",
+    "targetType": "msg",
+    "tosidebar": true,
+    "tostatus": false,
+    "x": 690,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "8d2b6f04a1c93e7b",
+    "type": "function",
+    "z": "b1f4c0a27d3e8a51",
+    "name": "Deploy-Nachweis bauen",
+    "finalize": "",
+    "func": "// Kein Fremdsystem, keine Nebenwirkung — nur ein Beleg, dass dieser Flow\n// aus Git deployt wurde und laeuft.\nmsg.payload = {\n    instanz: \"wfm-test\",\n    quelle: \"git: apps/wfm-test/flows.json\",\n    ausgeloest: new Date(msg.payload).toISOString()\n};\nreturn msg;",
+    "initialize": "",
+    "libs": [],
+    "noerr": 0,
+    "outputs": 1,
+    "timeout": 0,
+    "x": 430,
+    "y": 120,
+    "wires": [
+      [
+        "5e0c8a3f7b21d946"
+      ]
+    ]
+  }
+]

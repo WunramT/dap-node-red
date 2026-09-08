@@ -85,7 +85,7 @@ What the migration costs, and what it does not, depends on where the authoritati
 
 The 13 plain instances configure the same thing. Nine groups by literal text collapsed to five by configuration, and of those five, two were the per-instance admin root and one was the settings.js scaffold that 5.0.1 generates. Two were real deviations, and both are being brought back to what the others do:
 
-- **`wfm` gets `adminAuth`.** It answered `200` unauthenticated — its editor and Admin API were open to anyone who could reach the container, on a host that publishes 1880.
+- **`wfm-prod` gets `adminAuth`.** It answered `200` unauthenticated — its editor and Admin API were open to anyone who could reach the container, on a host that publishes 1880.
 - **`cho-prod` goes back to `level: "info"`.** It was the only instance logging at `trace`.
 
 So the repository holds **one** `settings.js`, with the genuinely per-instance values — `httpAdminRoot`, `dns_search`, `adminAuth`, `credentialSecret` — supplied per instance rather than forked into 13 files.

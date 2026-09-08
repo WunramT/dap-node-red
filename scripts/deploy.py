@@ -208,7 +208,7 @@ def deploy(inst: dict, dry_run: bool) -> int:
     if creds:
         token = get_token(base, admin_root, *creds)
     else:
-        # wfm has adminAuth switched off, so there is nothing to authenticate
+        # wfm-prod has adminAuth switched off, so there is nothing to authenticate
         # against until that is fixed (decision 13). Say so rather than failing
         # silently into an unauthenticated deploy.
         print(f"{name}: no credentials in the environment for "
