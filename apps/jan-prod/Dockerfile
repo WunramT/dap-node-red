@@ -6,5 +6,9 @@ FROM docker.io/nodered/node-red:4.0.9
 # /data is bind-mounted at runtime, so palette modules are installed into the
 # application directory instead — a package.json under /data would be shadowed
 # by the mount.
-COPY package.json /usr/src/node-red/package.json
+#
+# The path is repo-root relative because the buildah component builds with the
+# repository as the context and passes only --file. Build it by hand the same
+# way: docker build -f apps/jan-prod/Dockerfile .
+COPY apps/jan-prod/package.json /usr/src/node-red/package.json
 RUN npm install --no-audit --no-fund --no-update-notifier --omit=dev

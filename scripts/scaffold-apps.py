@@ -46,7 +46,11 @@ FROM docker.io/nodered/node-red:{version}
 # /data is bind-mounted at runtime, so palette modules are installed into the
 # application directory instead — a package.json under /data would be shadowed
 # by the mount.
-COPY package.json /usr/src/node-red/package.json
+#
+# The path is repo-root relative because the buildah component builds with the
+# repository as the context and passes only --file. Build it by hand the same
+# way: docker build -f apps/{app}/Dockerfile .
+COPY apps/{app}/package.json /usr/src/node-red/package.json
 RUN npm install --no-audit --no-fund --no-update-notifier --omit=dev
 """
 
@@ -124,7 +128,7 @@ def main() -> int:
                 "private": True,
                 "dependencies": dict(sorted(palette.items())),
             }, indent=2) + "\n", encoding="utf-8")
-            (app / "Dockerfile").write_text(DOCKERFILE.format(version=version), encoding="utf-8")
+            (app / "Dockerfile").write_text(DOCKERFILE.format(version=version, app=inst["app"]), encoding="utf-8")
 
         written.append((inst["app"], len(nodes), version,
                         "?" if palette is None else str(len(palette))))
