@@ -1,105 +1,69 @@
-# A local Node-RED editor that writes straight into the working tree.
-#
-#   APP=wag-prod docker compose -f compose/editor.yml up
-#   APP=wag-prod podman compose -f compose/editor.yml up
-#
-# Or, which also pins the Node-RED version to the one that instance runs and
-# fills in REPO_ROOT inside a dev container:
+# A local Node-RED editor for one app, with every existing tab switched off.
 #
 #   python3 scripts/nr.py edit wag-prod
 #   # then open http://localhost:1880
 #
-# A flow that uses palette nodes needs an editor that knows them, or those
-# nodes open as "unknown" and cannot be configured. EDITOR_IMAGE points the
-# editor at that app's own image, which has the palette baked in:
-#
-#   python3 scripts/nr.py edit gor-prod --baked
-#
-# That pulls from Harbor, so it needs a docker login there. Without it the
-# editor stays on the plain image, which is enough for a flow of core nodes.
-#
-# The editor writes apps/$APP/flows.json when you press Deploy. That removes
-# the manual copy step between the browser and the repository, which is what
-# keeps committed flows editor-valid in practice rather than in principle.
-#
 # ---------------------------------------------------------------------------
-# Why this container cannot double your data
+# Why the tabs arrive disabled
 # ---------------------------------------------------------------------------
-# A real flow contains live nodes. Open a production flow in a container that
-# can reach the brokers, press Deploy, and you now have two runtimes consuming
-# the same MQTT topic and writing the same rows to Postgres. Three separate
-# things stop that here, because one is not enough:
+# A real flow contains live nodes. Open one in a container that can reach the
+# brokers, press Deploy, and a second runtime starts consuming the same MQTT
+# topic and writing the same rows. Safe mode does not save you: it ends at the
+# first Deploy, and Deploy is how the editor writes your work into the tree.
 #
-#   1. No route out. The container sits on an internal network, so it has no
-#      gateway: nothing outside it is reachable at all, by name or by address.
-#      This is the one that closes the case below, and it is why the editor
-#      cannot reach a broker even after you press Deploy.
-#   2. No credentials. flows_cred.json never leaves its host and is gitignored,
-#      so every node needing a login cannot authenticate.
-#   3. No name resolution. dns points at a black hole and dns_search is empty,
-#      so no broker or database hostname resolves. Nodes go red in the editor.
-#      That is the intended appearance, not a fault.
-#   4. Safe mode. The runtime loads the flow but does not start it. This covers
-#      the window before you press Deploy; after a Deploy the flows do start,
-#      which is why it is the weakest of the four and not the only one.
+# Most nodes in this estate carry no credentials, so "it cannot authenticate"
+# protects nothing here — and several address their target by literal IP, so
+# name resolution protects nothing either.
 #
-# Layers 2 to 4 left one real gap: a node holding a literal IP address against
-# a service that accepts anonymous connections. That is not hypothetical here —
-# the flows in this estate address a Modbus gateway and a Postgres host by IP,
-# and a drift check found both. Safe mode ends at the first Deploy, and an IP
-# needs no DNS. Layer 1 is what actually closes it.
+# So nr.py stages the flow into a session directory with every tab disabled and
+# mounts that, never apps/<app>/ itself. You enable the one tab you are working
+# on, or add a new one, and only that runs. On exit nr.py copies the flow back
+# and restores each existing tab's disabled state from Git, so the local
+# switching never reaches a commit and never reaches an instance.
 #
-# What can still happen is local to the container: an exec node runs inside it,
-# and a file node writes into the mounted app directory, which is your working
-# tree. Both are visible in `git diff` afterwards.
+# What is left: enabling a tab means it runs for real, against real systems.
+# That is the point — it is the deliberate act, not the accident. A config node
+# may also open a connection while its nodes are disabled; that is a connect
+# without traffic. And an exec node runs inside this container.
 #
-# To prove the isolation in your own setup, with the editor running:
+# For a flow you do not know, take the network away entirely:
 #
-#   <engine> compose -f compose/editor.yml exec editor \
-#     node -e "require('net').connect(443,'1.1.1.1').on('error',()=>console.log('blocked')).setTimeout(3000,()=>console.log('blocked'))"
+#   python3 scripts/nr.py edit srem-test --isolated
 #
-# Anything but `blocked` means the internal network did not take effect — some
-# compose providers ignore the flag — and then the editor is only as safe as
-# layers 2 to 4.
+# That puts the editor on a network with no gateway — nothing outside the
+# container is reachable, by name or by address, Deploy or no Deploy. Verify it
+# in your own engine, because some compose providers ignore the flag:
 #
-# ---------------------------------------------------------------------------
-# Rootless podman
-# ---------------------------------------------------------------------------
-# The point of this container is that pressing Deploy writes into the working
-# tree. Under rootless podman the container's node-red user does not map to the
-# host user, so that write can fail with EACCES while everything else looks
-# fine. If it does, either hand the mount to the container's view of the uid
-#
-#   podman unshare chown -R 1000:1000 apps/<app>
-#
-# or add :U to the volume line so podman does it. Docker does not need either.
+#   <engine> compose -f compose/editor.yml exec editor node -e \
+#     "require('net').connect(443,'1.1.1.1').on('error',()=>console.log('blocked')).setTimeout(3000,()=>console.log('blocked'))"
 #
 # ---------------------------------------------------------------------------
 
 services:
   editor:
+    # EDITOR_IMAGE is that app's own image, so its palette nodes open as
+    # themselves; otherwise the plain runtime at the version the instance runs.
     image: ${EDITOR_IMAGE:-nodered/node-red:${NODE_RED_VERSION:-5.0.1}}
     container_name: node-red-editor
     ports:
       - "127.0.0.1:1880:1880"     # localhost only — not reachable from the network
     volumes:
-      # REPO_ROOT is empty outside a dev container, so this stays the relative
-      # path next to this file. Inside a dev container the docker daemon runs on
-      # the host and cannot see /workspaces/..., so scripts/nr.py sets REPO_ROOT
-      # to the host path and the mount resolves there instead.
-      - ${REPO_ROOT:-..}/apps/${APP:?set APP to an app directory, e.g. APP=wag-prod}:/data
+      # EDITOR_DATA is the staged session directory nr.py prepares. REPO_ROOT is
+      # empty outside a dev container, so this stays the relative path next to
+      # this file; inside one the docker daemon runs on the host and cannot see
+      # /workspaces/..., so nr.py sets REPO_ROOT to the host path instead.
+      - ${REPO_ROOT:-..}/${EDITOR_DATA:?set EDITOR_DATA, or use scripts/nr.py edit}:/data
     environment:
-      # Load the flow, do not run it.
+      # Load the flow, do not run it — covers the window before the first Deploy.
       NODE_RED_ENABLE_SAFE_MODE: "true"
-    dns:
-      - 127.0.0.1                 # nothing outside this container resolves
-    dns_search: []
     networks:
-      - isolated
+      - ${EDITOR_NETWORK:-bridged}
     restart: "no"
 
 networks:
+  # Normal networking, so the tab you enable can reach a database or a broker.
+  bridged: {}
+  # No gateway, so no egress at all. The published port still works: the host
+  # routes to the bridge, the container has no route back out.
   isolated:
-    # No gateway, so no egress. The published port above still works: the host
-    # routes to the bridge, the container has no route back out.
     internal: true

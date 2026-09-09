@@ -54,3 +54,6 @@ Thumbs.db
 
 # Backup files
 *.bak
+
+# Staged flow for the local editor — a working copy, never committed.
+.editor-session/

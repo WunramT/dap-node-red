@@ -5,7 +5,8 @@
     python3 scripts/nr.py status               # every instance, one table
     python3 scripts/nr.py check    wag-prod
     python3 scripts/nr.py edit     wag-prod
-    python3 scripts/nr.py edit     gor-prod --baked   # editor with that app's palette
+    python3 scripts/nr.py edit     gor-prod --baked      # editor with that app's palette
+    python3 scripts/nr.py edit     srem-test --isolated  # editor with no way out
     python3 scripts/nr.py capture  wag-prod
     python3 scripts/nr.py deploy   wag-prod    # dry run; it never deploys for real
 
@@ -108,6 +109,58 @@ def run(argv: list[str], env: dict | None = None) -> int:
         sys.exit(f"{argv[0]} is not on PATH, so this action cannot run.")
 
 
+SESSION = ROOT / ".editor-session"
+
+
+def stage_session(app: str) -> tuple[str, dict[str, bool], list[str]]:
+    """Copy the app's flow into a session directory, every tab disabled.
+
+    The editor writes flows.json wherever /data is mounted, so mounting
+    apps/<app>/ directly means the local run and the committed file are the
+    same thing — and then switching a tab off to work safely would be a change
+    on its way to an instance. Staging a copy keeps the two apart.
+    """
+    flows = json.loads((ROOT / "apps" / app / "flows.json").read_text(encoding="utf-8"))
+    was = {n["id"]: bool(n.get("disabled", False)) for n in flows if n.get("type") == "tab"}
+    labels = []
+    for node in flows:
+        if node.get("type") == "tab":
+            node["disabled"] = True
+            labels.append(node.get("label") or node["id"])
+
+    directory = SESSION / app
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "flows.json").write_text(json.dumps(flows, indent=2) + "\n", encoding="utf-8")
+    return f".editor-session/{app}", was, labels
+
+
+def merge_session(app: str, was: dict[str, bool]) -> list[str]:
+    """Bring the session's flow back, restoring what Git said about each tab.
+
+    A tab that existed before keeps the disabled state from Git, whatever it
+    was switched to locally — that switching is how you work here, not
+    something to deploy. A tab you added is new, so it keeps its own state.
+    """
+    staged = SESSION / app / "flows.json"
+    if not staged.exists():
+        return []
+
+    flows = json.loads(staged.read_text(encoding="utf-8"))
+    added = []
+    for node in flows:
+        if node.get("type") != "tab":
+            continue
+        if node["id"] in was:
+            node["disabled"] = was[node["id"]]
+        else:
+            added.append(node.get("label") or node["id"])
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from normalize import normalize, render
+    (ROOT / "apps" / app / "flows.json").write_text(render(normalize(flows)), encoding="utf-8")
+    return added
+
+
 def compose_cmd(instance: str) -> list[str]:
     """`docker compose` or `podman compose`, whichever this machine has.
 
@@ -137,7 +190,8 @@ def compose_cmd(instance: str) -> list[str]:
     )
 
 
-def act(action: str, inst: dict | None, cfg: dict, baked: bool = False) -> int:
+def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
+        isolated: bool = False) -> int:
     if action == "status":
         env = dict(os.environ)
         for i in instances():
@@ -154,10 +208,17 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False) -> int:
             sys.exit(f"{inst['name']} has no app — there is no flow to edit. "
                      f"See open question 3 in docs/open-questions.md.")
         compose = compose_cmd(inst["name"])
-        print(f"\nEditor for {inst['name']} -> apps/{inst['app']}/\n"
-              f"Open http://localhost:1880 once it starts. Press Deploy to write\n"
-              f"apps/{inst['app']}/flows.json. Stop it with Ctrl-C.\n"
-              f"No credentials, no name resolution, safe mode — see compose/editor.yml.\n")
+        data, was, labels = stage_session(inst["app"])
+        print(f"\nEditor for {inst['name']} -> {data}/ (a copy, not apps/{inst['app']}/)\n"
+              f"Open http://localhost:1880 once it starts, then Ctrl-C to finish.\n"
+              f"\n"
+              f"{len(labels)} tab(s) arrive DISABLED: {', '.join(labels) or '—'}\n"
+              f"Enable the one you want to work on, or add a new tab. Only what you\n"
+              f"enable runs — and it runs for real, against real systems.\n"
+              f"\n"
+              f"On Ctrl-C the flow is copied into apps/{inst['app']}/flows.json with each\n"
+              f"existing tab's disabled state restored from Git, so the switching stays\n"
+              f"local. Review it with git diff.\n")
         # Inside a dev container the docker daemon is the host's, so the bind
         # mount must name a host path. LOCAL_WORKSPACE_FOLDER is what the dev
         # container sets to that path; outside one it is unset and the compose
@@ -176,8 +237,20 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False) -> int:
             # That app's own image, so its palette nodes open as themselves
             # rather than as "unknown". Needs a docker login to Harbor.
             env["EDITOR_IMAGE"] = inst["image_tag"]
-        print(f"editor image: {env.get('EDITOR_IMAGE', 'nodered/node-red:' + version)}\n")
-        return run([*compose, "-f", "compose/editor.yml", "up"], env)
+        env["EDITOR_DATA"] = data
+        if isolated:
+            env["EDITOR_NETWORK"] = "isolated"
+        print(f"editor image:   {env.get('EDITOR_IMAGE', 'nodered/node-red:' + version)}")
+        print(f"editor network: {env.get('EDITOR_NETWORK', 'bridged')}"
+              f"{'  (no route out)' if isolated else '  (databases and brokers reachable)'}\n")
+        try:
+            return run([*compose, "-f", "compose/editor.yml", "up"], env)
+        finally:
+            # Also on Ctrl-C, which is the normal way to end an editor session.
+            added = merge_session(inst["app"], was)
+            print(f"\ncopied back into apps/{inst['app']}/flows.json"
+                  f"{' — new tab(s) kept as you left them: ' + ', '.join(added) if added else ''}")
+            print(f"  git diff apps/{inst['app']}/flows.json")
 
     env = build_env(inst, cfg, need_password=True)
     script = {"check": "drift-check.py", "capture": "capture.py", "deploy": "deploy.py"}[action]
@@ -213,9 +286,10 @@ def main() -> int:
 
     argv = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
-    if flags - {"--baked"}:
-        sys.exit(f"unknown option(s): {', '.join(sorted(flags - {'--baked'}))}. "
-                 f"Only --baked is understood, and only for edit.")
+    known = {"--baked", "--isolated"}
+    if flags - known:
+        sys.exit(f"unknown option(s): {', '.join(sorted(flags - known))}. "
+                 f"Understood: {', '.join(sorted(known))}, and only for edit.")
 
     action = argv[0] if argv else None
     if action and action not in ACTIONS:
@@ -239,7 +313,8 @@ def main() -> int:
     if not inst:
         sys.exit(f"no instance named {name} in {registry_source()}.\n"
                  f"  Known: {', '.join(i['name'] for i in all_instances)}")
-    return act(action, inst, cfg, baked="--baked" in flags)
+    return act(action, inst, cfg, baked="--baked" in flags,
+               isolated="--isolated" in flags)
 
 
 if __name__ == "__main__":

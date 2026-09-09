@@ -238,7 +238,21 @@ Step 1 is not optional. If the instance has drifted, your local edit is against 
 
 Prefer `nr.py edit` over the bare compose call: it pins the editor to the Node-RED version that instance runs, which a plain `APP=... docker compose up` does not, and it finds the container engine — podman on a workstation, Docker on a server, or whatever `CONTAINER_ENGINE` names. A 5.x editor writes fields into the flow that a 4.0.x runtime does not know, in a file whose whole purpose is to deploy unchanged. For a flow that uses palette nodes, add `--baked` so the editor runs that app's own image and those nodes open as themselves instead of as "unknown" — that pulls from Harbor and needs a login there.
 
-**The editor container cannot double your data.** That is the obvious hazard — a production flow with MQTT and OPC UA nodes, opened in a second runtime that reaches the same broker, acts twice. `compose/editor.yml` blocks it four ways: an internal network with no gateway, so nothing outside the container is reachable by name or by address; no credentials (`flows_cred.json` never leaves its host); no name resolution; and safe mode so the flow loads without starting. The first of those is what makes the others sufficient: safe mode ends at the first Deploy, and a node holding a literal IP needs no DNS — and flows here do address a Modbus gateway and a Postgres host by IP. What remains is local to the container: an exec node runs inside it, a file node writes into the mounted app directory. That file explains how to verify the isolation in your own engine.
+**The editor arrives with every tab disabled.** That is the protection, and it
+replaces one that did not hold: most nodes here carry no credentials and several
+address their target by literal IP, so "it cannot authenticate" and "it cannot
+resolve" protect nothing, and safe mode ends at the first Deploy — which is how
+the editor saves your work. So `nr.py edit` stages the flow into
+`.editor-session/<app>/` with the tabs switched off and mounts that, never
+`apps/<app>/`. Enable the tab you are working on, or add one; only that runs,
+and it runs for real against real systems, which is the deliberate act rather
+than the accident. On Ctrl-C the flow is copied back with each existing tab's
+disabled state restored from Git, so local switching never reaches a commit.
+
+For a flow you do not know, `--isolated` puts the editor on a network with no
+gateway: nothing outside the container is reachable, Deploy or no Deploy.
+
+**The editor container cannot double your data.** That is the obvious hazard — a production flow with MQTT and OPC UA nodes, opened in a second runtime that reaches the same broker, acts twice. The disabled tabs are what stop it, with safe mode covering the window before the first Deploy and `--isolated` available when even that is too much. What remains: a config node may open a connection while its own nodes are disabled — a connect without traffic — and an exec node runs inside the container. `compose/editor.yml` spells this out, including how to verify the isolated mode in your own engine, because some compose providers ignore the flag.
 
 ### Route B — edit in the browser, then capture
 
