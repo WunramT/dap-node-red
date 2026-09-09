@@ -30,6 +30,7 @@ Bisher hat kein reales `POST /flows` stattgefunden — die Jenkins-Läufe waren 
 `wfm-test` ist dafür der richtige Ort: neue, leere Instanz auf echter Infrastruktur, mit einem Startflow in Git, der kein Fremdsystem berührt. Der erste echte Deploy schreibt dort also wirklich etwas — und kann nichts kaputt machen. `wag-prod` bleibt der Zweitkandidat, wenn der Pfad einmal bewiesen ist.
 
 - [ ] `node-red-test` als zweiten Service in `/home/administrator/Base_Container/docker-compose.yml` auf `wfm-svr-lin01` anlegen: eigener Bind-Mount `./node-red-test/data`, Port `1881`, sonst identisch zu `node-red` (User, TZ, dns_search, dns).
+- [ ] Das Datenverzeichnis **mit `sudo`** auf `1004:1004` setzen und mit `ls -ldn` prüfen. Ohne das startet die Instanz, liest sauber und stirbt beim ersten Schreibzugriff — siehe `runbook.md`, "A new instance's /data must belong to the container user".
 - [ ] `adminAuth` und `credentialSecret` in dessen `settings.js` von Anfang an setzen — bei einer neuen Instanz gibt es nichts zu pinnen, der Wert wird einmal erzeugt und in eine Jenkins-Credential gelegt.
 - [ ] Jenkins-Credentials `nodered-wfm-test-auth` und `nodered-wfm-test-credsecret` anlegen.
 - [ ] Dry-Run: `INSTANCE=wfm-test`, `DRY_RUN=true` → erwartet ein Diff über die 4 Nodes des Startflows (die Instanz ist leer, Git nicht).

@@ -63,6 +63,32 @@ The compose file and service name differ per host; both are in `registry.yml`.
 
 **4. Verify.** Open the editor and confirm a stored credential still decrypts. On `wfm-prod`, confirm the login prompt appears and that `curl -s -o /dev/null -w '%{http_code}' http://<ip>:1880/flows` now returns `401` rather than `200`.
 
+## A new instance's /data must belong to the container user
+
+The compose services run as `1004:1004`, so the bind-mounted directory has to
+be owned by that uid before the container starts — and setting a foreign owner
+needs root:
+
+```bash
+sudo mkdir -p /home/administrator/Base_Container/<service>/data
+sudo chown -R 1004:1004 /home/administrator/Base_Container/<service>/data
+ls -ldn /home/administrator/Base_Container/<service>/data   # must read 1004 1004
+```
+
+Without it the runtime starts and serves reads, so it looks healthy, and then
+dies the first time it writes. On `wfm-test` that was the token endpoint
+persisting a session:
+
+```
+[warn] Flushing file /data/.sessions.json.$$$ to disk failed : EACCES
+[red] Uncaught Exception:
+```
+
+`restart: always` brings it straight back, so the symptom at the other end is a
+connection accepted and dropped without an HTTP response, not a permission
+error. `Creating new flow file` on every start is the other tell: the flow file
+cannot be written either, so no deploy would ever have persisted.
+
 ## Compose split
 
 The compose file differs per host — `code/node-red/`, `energy/`, `Base_Container/`, `base_container/` — and the inventory's neighbour probe found no non-Node-RED service in any of those projects. If that holds, the split is already done and there is no work here.
