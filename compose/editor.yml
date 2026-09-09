@@ -1,6 +1,7 @@
 # A local Node-RED editor that writes straight into the working tree.
 #
 #   APP=wag-prod docker compose -f compose/editor.yml up
+#   APP=wag-prod podman compose -f compose/editor.yml up
 #
 # Or, which also pins the Node-RED version to the one that instance runs and
 # fills in REPO_ROOT inside a dev container:
@@ -42,6 +43,18 @@
 # The residual risk is a node configured with a literal IP address and a broker
 # that accepts anonymous connections. Check for that before you open a flow you
 # do not know. For a flow you are writing from scratch there is no risk at all.
+#
+# ---------------------------------------------------------------------------
+# Rootless podman
+# ---------------------------------------------------------------------------
+# The point of this container is that pressing Deploy writes into the working
+# tree. Under rootless podman the container's node-red user does not map to the
+# host user, so that write can fail with EACCES while everything else looks
+# fine. If it does, either hand the mount to the container's view of the uid
+#
+#   podman unshare chown -R 1000:1000 apps/<app>
+#
+# or add :U to the volume line so podman does it. Docker does not need either.
 #
 # ---------------------------------------------------------------------------
 

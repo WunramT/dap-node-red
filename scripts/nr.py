@@ -28,6 +28,7 @@ import getpass
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -99,7 +100,41 @@ def build_env(inst: dict, cfg: dict, need_password: bool) -> dict:
 
 def run(argv: list[str], env: dict | None = None) -> int:
     print(f"\n$ {' '.join(argv)}\n")
-    return subprocess.run(argv, cwd=ROOT, env=env).returncode
+    try:
+        return subprocess.run(argv, cwd=ROOT, env=env).returncode
+    except FileNotFoundError:
+        # Windows raises WinError 2 here, which arrives as a traceback ten
+        # frames deep and says nothing about which program is missing.
+        sys.exit(f"{argv[0]} is not on PATH, so this action cannot run.")
+
+
+def compose_cmd(instance: str) -> list[str]:
+    """`docker compose` or `podman compose`, whichever this machine has.
+
+    The repository's own convention is podman on a workstation and Docker on the
+    servers (docs/copilot-instructions.md), so hard-coding docker made `edit`
+    the one action that failed on exactly the machines it exists for.
+    """
+    engine = os.environ.get("CONTAINER_ENGINE")
+    if engine:
+        return [engine, "compose"]
+    for candidate in ("docker", "podman"):
+        if shutil.which(candidate):
+            return [candidate, "compose"]
+    sys.exit(
+        "The local editor needs a container engine, and neither docker nor\n"
+        "  podman is on PATH. Set CONTAINER_ENGINE if yours is called something\n"
+        "  else. It is the only action that needs one: status, check, capture\n"
+        "  and deploy talk to the Admin API and need nothing but Python.\n"
+        "\n"
+        "  For a test instance the other route is the intended one anyway —\n"
+        "  edit in that instance's own editor, then bring the change back:\n"
+        f"      python3 scripts/nr.py capture {instance}\n"
+        "  See docs/runbook.md, 'Changing a flow', route B.\n"
+        "\n"
+        "  An engine inside WSL is not enough: this runs as a Windows process\n"
+        "  and needs the .exe on the Windows PATH."
+    )
 
 
 def act(action: str, inst: dict | None, cfg: dict, baked: bool = False) -> int:
@@ -118,6 +153,7 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False) -> int:
         if not inst.get("app"):
             sys.exit(f"{inst['name']} has no app — there is no flow to edit. "
                      f"See open question 3 in docs/open-questions.md.")
+        compose = compose_cmd(inst["name"])
         print(f"\nEditor for {inst['name']} -> apps/{inst['app']}/\n"
               f"Open http://localhost:1880 once it starts. Press Deploy to write\n"
               f"apps/{inst['app']}/flows.json. Stop it with Ctrl-C.\n"
@@ -141,7 +177,7 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False) -> int:
             # rather than as "unknown". Needs a docker login to Harbor.
             env["EDITOR_IMAGE"] = inst["image_tag"]
         print(f"editor image: {env.get('EDITOR_IMAGE', 'nodered/node-red:' + version)}\n")
-        return run(["docker", "compose", "-f", "compose/editor.yml", "up"], env)
+        return run([*compose, "-f", "compose/editor.yml", "up"], env)
 
     env = build_env(inst, cfg, need_password=True)
     script = {"check": "drift-check.py", "capture": "capture.py", "deploy": "deploy.py"}[action]
