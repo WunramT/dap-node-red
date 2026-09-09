@@ -15,6 +15,7 @@ include:
     job_name: build:buildah:cho-prod
     dockerfile: apps/cho-prod/Dockerfile
     image_name: dap-node-red/cho-prod
+    image_tag: 4.0.5-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -27,6 +28,7 @@ include:
     job_name: build:buildah:cho-test
     dockerfile: apps/cho-test/Dockerfile
     image_name: dap-node-red/cho-test
+    image_tag: 4.0.5-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -39,6 +41,7 @@ include:
     job_name: build:buildah:gor-prod
     dockerfile: apps/gor-prod/Dockerfile
     image_name: dap-node-red/gor-prod
+    image_tag: 4.0.5-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -51,6 +54,7 @@ include:
     job_name: build:buildah:gor-test
     dockerfile: apps/gor-test/Dockerfile
     image_name: dap-node-red/gor-test
+    image_tag: 4.0.5-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -63,6 +67,7 @@ include:
     job_name: build:buildah:jan-prod
     dockerfile: apps/jan-prod/Dockerfile
     image_name: dap-node-red/jan-prod
+    image_tag: 4.0.9-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -75,6 +80,7 @@ include:
     job_name: build:buildah:jan-test
     dockerfile: apps/jan-test/Dockerfile
     image_name: dap-node-red/jan-test
+    image_tag: 4.0.9-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -87,6 +93,7 @@ include:
     job_name: build:buildah:srem-prod
     dockerfile: apps/srem-prod/Dockerfile
     image_name: dap-node-red/srem-prod
+    image_tag: 4.0.9-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -99,6 +106,7 @@ include:
     job_name: build:buildah:srem-test
     dockerfile: apps/srem-test/Dockerfile
     image_name: dap-node-red/srem-test
+    image_tag: 4.0.9-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -111,6 +119,7 @@ include:
     job_name: build:buildah:wag-prod
     dockerfile: apps/wag-prod/Dockerfile
     image_name: dap-node-red/wag-prod
+    image_tag: 5.0.1-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -123,6 +132,7 @@ include:
     job_name: build:buildah:wag-test
     dockerfile: apps/wag-test/Dockerfile
     image_name: dap-node-red/wag-test
+    image_tag: 5.0.1-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -135,6 +145,7 @@ include:
     job_name: build:buildah:wfm-prod
     dockerfile: apps/wfm-prod/Dockerfile
     image_name: dap-node-red/wfm-prod
+    image_tag: 4.0.9-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -147,6 +158,7 @@ include:
     job_name: build:buildah:wfm-test
     dockerfile: apps/wfm-test/Dockerfile
     image_name: dap-node-red/wfm-test
+    image_tag: 4.0.9-1
     enable_layers_cache: false
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
   inputs:
@@ -155,8 +167,6 @@ include:
     image_name: dap-node-red/wfm-test
 
 build:buildah:cho-prod:
-  variables:
-    IMAGE_TAG: 4.0.5-1
   resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -172,8 +182,6 @@ sign:cosign:cho-prod:
     changes:
     - apps/cho-prod/**/*
 build:buildah:cho-test:
-  variables:
-    IMAGE_TAG: 4.0.5-1
   resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -189,8 +197,6 @@ sign:cosign:cho-test:
     changes:
     - apps/cho-test/**/*
 build:buildah:gor-prod:
-  variables:
-    IMAGE_TAG: 4.0.5-1
   resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -206,8 +212,6 @@ sign:cosign:gor-prod:
     changes:
     - apps/gor-prod/**/*
 build:buildah:gor-test:
-  variables:
-    IMAGE_TAG: 4.0.5-1
   resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -223,8 +227,6 @@ sign:cosign:gor-test:
     changes:
     - apps/gor-test/**/*
 build:buildah:jan-prod:
-  variables:
-    IMAGE_TAG: 4.0.9-1
   resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -240,8 +242,6 @@ sign:cosign:jan-prod:
     changes:
     - apps/jan-prod/**/*
 build:buildah:jan-test:
-  variables:
-    IMAGE_TAG: 4.0.9-1
   resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -257,8 +257,6 @@ sign:cosign:jan-test:
     changes:
     - apps/jan-test/**/*
 build:buildah:srem-prod:
-  variables:
-    IMAGE_TAG: 4.0.9-1
   resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -274,8 +272,6 @@ sign:cosign:srem-prod:
     changes:
     - apps/srem-prod/**/*
 build:buildah:srem-test:
-  variables:
-    IMAGE_TAG: 4.0.9-1
   resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -291,8 +287,6 @@ sign:cosign:srem-test:
     changes:
     - apps/srem-test/**/*
 build:buildah:wag-prod:
-  variables:
-    IMAGE_TAG: 5.0.1-1
   resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -308,8 +302,6 @@ sign:cosign:wag-prod:
     changes:
     - apps/wag-prod/**/*
 build:buildah:wag-test:
-  variables:
-    IMAGE_TAG: 5.0.1-1
   resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -325,8 +317,6 @@ sign:cosign:wag-test:
     changes:
     - apps/wag-test/**/*
 build:buildah:wfm-prod:
-  variables:
-    IMAGE_TAG: 4.0.9-1
   resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -342,8 +332,6 @@ sign:cosign:wfm-prod:
     changes:
     - apps/wfm-prod/**/*
 build:buildah:wfm-test:
-  variables:
-    IMAGE_TAG: 4.0.9-1
   resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

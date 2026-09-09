@@ -9,6 +9,12 @@ already used for the frontend image. The file is generated rather than written
 by hand for one reason: the image tag in it must be the tag `registry.yml`
 pins, and two hand-maintained copies of a version number diverge.
 
+The tag goes in as the buildah component's `image_tag` INPUT. A job-level
+`IMAGE_TAG` variable looks like it should work and does nothing: the component
+interpolates `$[[ inputs.image_tag ]]` into its own `variables:` at include
+time, and reads no variable of that name. That is why every image was pushed
+as the commit SHA while registry.yml pinned <version>-<build>.
+
 Builds are also throttled to CONCURRENCY at a time. Twelve buildah jobs at once
 saturated the shared runner, and image builds are not urgent enough to be worth
 that — a resource group holds one job at a time, so cycling the jobs through
@@ -54,7 +60,7 @@ def blocks(instances: list[dict]) -> tuple[list, dict]:
             {"component": "$CI_SERVER_FQDN/infrastructure/ci-cd-catalog/buildah/buildah-build@~latest",
              "inputs": {"stage": "Build", "job_name": f"build:buildah:{app}",
                         "dockerfile": f"apps/{app}/Dockerfile", "image_name": image_name,
-                        "enable_layers_cache": False}},
+                        "image_tag": version, "enable_layers_cache": False}},
             {"component": "$CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest",
              "inputs": {"stage": "Sign", "job_name": f"sign:cosign:{app}",
                         "image_name": image_name}},
@@ -62,7 +68,6 @@ def blocks(instances: list[dict]) -> tuple[list, dict]:
         rules = [{"if": '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH',
                   "changes": [f"apps/{app}/**/*"]}]
         jobs[f"build:buildah:{app}"] = {
-            "variables": {"IMAGE_TAG": version},
             # Only the build is throttled. Signing is cheap, and holding it in a
             # group would make it wait behind an unrelated build.
             "resource_group": f"image-build-{n % CONCURRENCY + 1}",
