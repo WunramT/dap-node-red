@@ -146,6 +146,21 @@ def merge_session(app: str, was: dict[str, bool]) -> list[str]:
         return []
 
     flows = json.loads(staged.read_text(encoding="utf-8"))
+
+    # If /data did not mount, Node-RED starts on an empty userDir and writes a
+    # flow with nothing in it — and copying that back would delete the app.
+    # An editor showing no tabs at all is that failure, not an empty app: the
+    # staged copy always has at least the tabs the app has.
+    if was and not any(n.get("type") == "tab" for n in flows):
+        sys.exit(
+            f"the session for {app} came back with no tabs, and the app has "
+            f"{len(was)}.\n"
+            "  Nothing was written. The editor was almost certainly looking at an\n"
+            "  empty directory — the mount did not land, which on podman for\n"
+            "  Windows usually means the path is not shared into the machine.\n"
+            f"  The session is still there: .editor-session/{app}/flows.json"
+        )
+
     added = []
     for node in flows:
         if node.get("type") != "tab":

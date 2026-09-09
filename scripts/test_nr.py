@@ -102,6 +102,16 @@ try:
     nr.merge_session(APP, {tab_id: True})
     check("a tab Git has disabled stays disabled",
           tabs(json.loads(LIVE.read_text(encoding="utf-8")))[tab_id]["disabled"] is True)
+    # --- the mount did not land ------------------------------------------
+    nr.stage_session(APP)
+    write_staged([])                                     # what an empty /data yields
+    before = LIVE.read_bytes()
+    try:
+        nr.merge_session(APP, was)
+        check("an empty session is refused, not copied back", False, "no SystemExit")
+    except SystemExit as exc:
+        check("an empty session is refused, not copied back", "no tabs" in str(exc))
+    check("and the app file is untouched by the refusal", LIVE.read_bytes() == before)
 finally:
     LIVE.write_bytes(original_bytes)
     shutil.rmtree(nr.SESSION, ignore_errors=True)
