@@ -30,19 +30,37 @@
 # the same MQTT topic and writing the same rows to Postgres. Three separate
 # things stop that here, because one is not enough:
 #
-#   1. No credentials. flows_cred.json never leaves its host and is gitignored,
-#      so every node needing a login cannot authenticate. This is the strongest
-#      of the three and it comes free from the architecture.
-#   2. No name resolution. dns points at a black hole and dns_search is empty,
+#   1. No route out. The container sits on an internal network, so it has no
+#      gateway: nothing outside it is reachable at all, by name or by address.
+#      This is the one that closes the case below, and it is why the editor
+#      cannot reach a broker even after you press Deploy.
+#   2. No credentials. flows_cred.json never leaves its host and is gitignored,
+#      so every node needing a login cannot authenticate.
+#   3. No name resolution. dns points at a black hole and dns_search is empty,
 #      so no broker or database hostname resolves. Nodes go red in the editor.
 #      That is the intended appearance, not a fault.
-#   3. Safe mode. The runtime loads the flow but does not start it. This covers
+#   4. Safe mode. The runtime loads the flow but does not start it. This covers
 #      the window before you press Deploy; after a Deploy the flows do start,
-#      which is why it is the weakest of the three and not the only one.
+#      which is why it is the weakest of the four and not the only one.
 #
-# The residual risk is a node configured with a literal IP address and a broker
-# that accepts anonymous connections. Check for that before you open a flow you
-# do not know. For a flow you are writing from scratch there is no risk at all.
+# Layers 2 to 4 left one real gap: a node holding a literal IP address against
+# a service that accepts anonymous connections. That is not hypothetical here —
+# the flows in this estate address a Modbus gateway and a Postgres host by IP,
+# and a drift check found both. Safe mode ends at the first Deploy, and an IP
+# needs no DNS. Layer 1 is what actually closes it.
+#
+# What can still happen is local to the container: an exec node runs inside it,
+# and a file node writes into the mounted app directory, which is your working
+# tree. Both are visible in `git diff` afterwards.
+#
+# To prove the isolation in your own setup, with the editor running:
+#
+#   <engine> compose -f compose/editor.yml exec editor \
+#     node -e "require('net').connect(443,'1.1.1.1').on('error',()=>console.log('blocked')).setTimeout(3000,()=>console.log('blocked'))"
+#
+# Anything but `blocked` means the internal network did not take effect — some
+# compose providers ignore the flag — and then the editor is only as safe as
+# layers 2 to 4.
 #
 # ---------------------------------------------------------------------------
 # Rootless podman
@@ -76,4 +94,12 @@ services:
     dns:
       - 127.0.0.1                 # nothing outside this container resolves
     dns_search: []
+    networks:
+      - isolated
     restart: "no"
+
+networks:
+  isolated:
+    # No gateway, so no egress. The published port above still works: the host
+    # routes to the bridge, the container has no route back out.
+    internal: true
