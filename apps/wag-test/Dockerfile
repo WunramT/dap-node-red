@@ -16,7 +16,7 @@ FROM docker.io/nodered/node-red:5.0.1
 # The path is repo-root relative because the buildah component builds with the
 # repository as the context and passes only --file. Build it by hand the same
 # way: docker build -f apps/wag-test/Dockerfile .
-COPY apps/wag-test/package.json /tmp/palette.json
+COPY --chown=node-red:node-red apps/wag-test/package.json /tmp/palette.json
 RUN set -eu; \
     modules="$(node -p 'Object.entries(require("/tmp/palette.json").dependencies||{}).map(([n,v])=>n+"@"+v).join(" ")')"; \
     if [ -n "$modules" ]; then \
