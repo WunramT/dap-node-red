@@ -55,6 +55,12 @@ def inspect(inst: dict) -> dict:
         _, payload = request(f"{base}{admin_root}/flows", token=token)
     except SystemExit as exc:
         return {**result, "state": "unreachable", "detail": str(exc).splitlines()[0]}
+    except Exception as exc:  # noqa: BLE001 — one bad host must not end the sweep
+        # The docstring promises this function never raises for an unreachable
+        # instance. SystemExit alone did not keep that promise: anything the
+        # network layer raises unwrapped took the whole run down with it.
+        return {**result, "state": "unreachable",
+                "detail": f"{type(exc).__name__}: {exc}"}
 
     running = (payload or {}).get("flows", [])
     rev = (payload or {}).get("rev")

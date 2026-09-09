@@ -150,6 +150,14 @@ python3 scripts/drift-check.py --all --json inventory/drift.json
 
 `srem-prod`, `srem-test` and `slu-prod` publish no port and will report as unreachable from a workstation. That is accurate, not a fault: reaching them means running on the host, which is what the pipeline does.
 
+**If every instance reports unreachable from a workstation, suspect a proxy first.** `urllib` honours `http_proxy` and `https_proxy`, so a corporate proxy takes the request for an internal host and usually closes it without an HTTP response — which reads as a connection reset rather than as a refusal. Put the site domain in `no_proxy`:
+
+```powershell
+$env:NO_PROXY = "polipol.intra,polipol-service.de,10.0.0.0/8,192.168.0.0/16"
+```
+
+A refused connection means the opposite: nothing is listening, so the instance or its port is the thing to check.
+
 **On `409`:** the running flow diverged from Git. Someone edited in the browser. Recover the edit rather than discarding it:
 
 1. `GET <admin_root>/flows` and save the running flow.

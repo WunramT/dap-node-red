@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import http.client
 import json
 import os
 import re
@@ -196,6 +197,23 @@ def request(url: str, *, method="GET", body=None, token=None, headers=None):
         ) from None
     except urllib.error.URLError as exc:
         raise SystemExit(f"{method} {url} -> unreachable: {exc.reason}") from None
+    except (http.client.HTTPException, ConnectionError, TimeoutError) as exc:
+        # RemoteDisconnected and friends come through urlopen unwrapped, so
+        # without this the caller gets a traceback instead of a diagnosis — and
+        # drift-check's sweep stops at the first host that does this.
+        #
+        # Something accepted the TCP connection and then did not answer HTTP.
+        # A closed port refuses instead, so this is usually not "nothing there":
+        # it is a proxy in the way, or something other than Node-RED on the port.
+        raise SystemExit(
+            f"{method} {url} -> {type(exc).__name__}: {exc}\n"
+            "  Something accepted the connection but sent no HTTP response.\n"
+            "  A closed port would refuse, so check, in this order:\n"
+            "    1. a proxy: urllib honours http_proxy/https_proxy. For an\n"
+            "       internal host, add it to no_proxy.\n"
+            "    2. what is actually on that port: curl -v <url>\n"
+            "    3. whether the instance is running at all."
+        ) from None
 
 
 def get_token(base: str, admin_root: str, user: str, password: str) -> str:
