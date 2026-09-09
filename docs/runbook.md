@@ -191,7 +191,7 @@ For a production flow, or a new flow. Nothing runs while you work.
 
 ```bash
 python3 scripts/drift-check.py --instance wag-prod     # 1. confirm Git matches the instance
-APP=wag-prod docker compose -f compose/editor.yml up    # 2. editor on http://localhost:1880
+python3 scripts/nr.py edit wag-prod                     # 2. editor on http://localhost:1880
                                                         # 3. edit, press Deploy
 python3 scripts/normalize.py --write apps/wag-prod/flows.json
 git diff apps/wag-prod/flows.json                       # 4. review — it should be small
@@ -201,6 +201,8 @@ git commit -am "flows(wag-prod): ..." && git push        # 5.
 Then in Jenkins: `INSTANCE=wag-prod`, `DRY_RUN=true` to see the diff the pipeline sees, then `DRY_RUN=false`.
 
 Step 1 is not optional. If the instance has drifted, your local edit is against a stale base and the deploy will hit a `409`.
+
+Prefer `nr.py edit` over the bare compose call: it pins the editor to the Node-RED version that instance runs, which a plain `APP=... docker compose up` does not. A 5.x editor writes fields into the flow that a 4.0.x runtime does not know, in a file whose whole purpose is to deploy unchanged. For a flow that uses palette nodes, add `--baked` so the editor runs that app's own image and those nodes open as themselves instead of as "unknown" — that pulls from Harbor and needs a login there.
 
 **The editor container cannot double your data.** That is the obvious hazard — a production flow with MQTT and Postgres nodes, opened in a second runtime that reaches the same broker, writes every row twice. `compose/editor.yml` blocks it three ways: no credentials (`flows_cred.json` never leaves its host), no name resolution (DNS points at a black hole), and safe mode so the flow loads without starting. The comments in that file explain the one residual case — a node with a literal IP against an anonymous broker.
 

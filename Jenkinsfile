@@ -30,6 +30,15 @@ import groovy.transform.Field
 pipeline {
     agent any
 
+    options {
+        // Two runs at once race each other through the rev handshake: the
+        // second reads a rev the first has already replaced, and the deploy
+        // aborts on a 409 nobody caused by editing in the browser. Constraint 1
+        // stands either way — a real browser edit still fails the pipeline, and
+        // there is still no --force. This only stops the pipeline racing itself.
+        disableConcurrentBuilds()
+    }
+
     parameters {
         choice(name: 'INSTANCE', description: 'Instance to deploy, or ALL', choices: [
             'ALL',

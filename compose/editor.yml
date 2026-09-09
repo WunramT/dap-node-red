@@ -2,10 +2,20 @@
 #
 #   APP=wag-prod docker compose -f compose/editor.yml up
 #
-# Or, which also fills in REPO_ROOT inside a dev container:
+# Or, which also pins the Node-RED version to the one that instance runs and
+# fills in REPO_ROOT inside a dev container:
 #
 #   python3 scripts/nr.py edit wag-prod
 #   # then open http://localhost:1880
+#
+# A flow that uses palette nodes needs an editor that knows them, or those
+# nodes open as "unknown" and cannot be configured. EDITOR_IMAGE points the
+# editor at that app's own image, which has the palette baked in:
+#
+#   python3 scripts/nr.py edit gor-prod --baked
+#
+# That pulls from Harbor, so it needs a docker login there. Without it the
+# editor stays on the plain image, which is enough for a flow of core nodes.
 #
 # The editor writes apps/$APP/flows.json when you press Deploy. That removes
 # the manual copy step between the browser and the repository, which is what
@@ -37,7 +47,7 @@
 
 services:
   editor:
-    image: nodered/node-red:${NODE_RED_VERSION:-5.0.1}
+    image: ${EDITOR_IMAGE:-nodered/node-red:${NODE_RED_VERSION:-5.0.1}}
     container_name: node-red-editor
     ports:
       - "127.0.0.1:1880:1880"     # localhost only — not reachable from the network

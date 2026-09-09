@@ -5,6 +5,7 @@
     python3 scripts/nr.py status               # every instance, one table
     python3 scripts/nr.py check    wag-prod
     python3 scripts/nr.py edit     wag-prod
+    python3 scripts/nr.py edit     gor-prod --baked   # editor with that app's palette
     python3 scripts/nr.py capture  wag-prod
     python3 scripts/nr.py deploy   wag-prod    # dry run; it never deploys for real
 
@@ -94,7 +95,7 @@ def run(argv: list[str], env: dict | None = None) -> int:
     return subprocess.run(argv, cwd=ROOT, env=env).returncode
 
 
-def act(action: str, inst: dict | None, cfg: dict) -> int:
+def act(action: str, inst: dict | None, cfg: dict, baked: bool = False) -> int:
     if action == "status":
         env = dict(os.environ)
         for i in instances():
@@ -121,6 +122,18 @@ def act(action: str, inst: dict | None, cfg: dict) -> int:
         env = {**os.environ, "APP": inst["app"]}
         if os.environ.get("LOCAL_WORKSPACE_FOLDER"):
             env["REPO_ROOT"] = os.environ["LOCAL_WORKSPACE_FOLDER"]
+
+        # The registry pins each instance to the Node-RED version it runs, and
+        # the editor has to match it: a 5.x editor writes fields a 4.0.x runtime
+        # does not know, into a file that is meant to deploy unchanged.
+        # harbor.example/dap-node-red/wfm-prod:4.0.9-1 -> 4.0.9
+        version = inst["image_tag"].rsplit(":", 1)[1].rsplit("-", 1)[0]
+        env["NODE_RED_VERSION"] = version
+        if baked:
+            # That app's own image, so its palette nodes open as themselves
+            # rather than as "unknown". Needs a docker login to Harbor.
+            env["EDITOR_IMAGE"] = inst["image_tag"]
+        print(f"editor image: {env.get('EDITOR_IMAGE', 'nodered/node-red:' + version)}\n")
         return run(["docker", "compose", "-f", "compose/editor.yml", "up"], env)
 
     env = build_env(inst, cfg, need_password=True)
@@ -154,7 +167,12 @@ def choose(prompt: str, options: list[tuple[str, str]]) -> str:
 def main() -> int:
     cfg = local_config()
     all_instances = instances()
-    argv = sys.argv[1:]
+
+    argv = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    if flags - {"--baked"}:
+        sys.exit(f"unknown option(s): {', '.join(sorted(flags - {'--baked'}))}. "
+                 f"Only --baked is understood, and only for edit.")
 
     action = argv[0] if argv else None
     if action and action not in ACTIONS:
@@ -177,7 +195,7 @@ def main() -> int:
     inst = next((i for i in all_instances if i["name"] == name), None)
     if not inst:
         sys.exit(f"no instance named {name} in registry.yml")
-    return act(action, inst, cfg)
+    return act(action, inst, cfg, baked="--baked" in flags)
 
 
 if __name__ == "__main__":
