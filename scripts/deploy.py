@@ -57,19 +57,44 @@ TIMEOUT = 30
 # Jenkins ships that along with this script.
 # --------------------------------------------------------------------------
 
+# Set by load_instances, so an error message can name the file it actually read
+# rather than the file the reader assumes.
+LOADED_FROM: Path | None = None
+
+
 def load_instances() -> list[dict]:
-    as_json = ROOT / "registry.json"
+    """The instance list, from registry.yml where that is possible.
+
+    registry.json is the copy Jenkins ships to a site host, because PyYAML is
+    not guaranteed there. It is a transport artifact, not a cache: it is
+    generated, gitignored, and can be older than the registry beside it.
+
+    Reading it first therefore made a stale copy in a working tree shadow the
+    real registry without a word — `nr.py check wfm-test` reported that an
+    instance plainly present in registry.yml did not exist. So the YAML wins
+    wherever it can be read, and the JSON is the fallback it was meant to be.
+    """
+    global LOADED_FROM
+    as_yaml, as_json = ROOT / "registry.yml", ROOT / "registry.json"
+
+    if as_yaml.exists():
+        try:
+            import yaml
+        except ImportError:
+            yaml = None
+        if yaml is not None:
+            LOADED_FROM = as_yaml
+            return yaml.safe_load(as_yaml.read_text(encoding="utf-8"))["instances"]
+
     if as_json.exists():
+        LOADED_FROM = as_json
         return json.loads(as_json.read_text(encoding="utf-8"))["instances"]
-    try:
-        import yaml
-    except ImportError:
-        raise SystemExit(
-            "Neither registry.json nor PyYAML is available.\n"
-            "Generate the JSON where PyYAML exists:\n"
-            "  python3 scripts/validate-registry.py --draft --emit-json"
-        )
-    return yaml.safe_load((ROOT / "registry.yml").read_text(encoding="utf-8"))["instances"]
+
+    raise SystemExit(
+        "Neither registry.yml with PyYAML nor registry.json is available.\n"
+        "Generate the JSON where PyYAML exists:\n"
+        "  python3 scripts/validate-registry.py --emit-json"
+    )
 
 
 # --------------------------------------------------------------------------

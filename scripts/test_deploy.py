@@ -98,6 +98,21 @@ check("admin_root read correctly", wag["admin_root"] == "/node-red-prod", wag.ge
 check("empty admin_root stays empty",
       next(i for i in instances if i["name"] == "wfm-prod")["admin_root"] == "")
 check("credential env naming", env_credentials("nodered-x-auth") is None)
+
+# A stale registry.json used to shadow registry.yml, so an instance that was
+# plainly in the YAML was reported as not existing. The YAML has to win.
+STALE = ROOT / "registry.json"
+existing = STALE.read_bytes() if STALE.exists() else None
+try:
+    STALE.write_text(json.dumps({"instances": [{"name": "only-in-the-json"}]}), encoding="utf-8")
+    names = {i["name"] for i in load_instances()}
+    check("registry.yml wins over a stale registry.json",
+          "wfm-test" in names and "only-in-the-json" not in names, str(sorted(names)[:3]))
+finally:
+    if existing is None:
+        STALE.unlink(missing_ok=True)
+    else:
+        STALE.write_bytes(existing)
 check("no CHANGEME placeholder survives in the registry",
       not any("CHANGEME" in str(v) for i in instances for v in i.values()))
 

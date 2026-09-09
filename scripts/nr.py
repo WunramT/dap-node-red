@@ -51,6 +51,13 @@ def instances() -> list[dict]:
     return load_instances()
 
 
+def registry_source() -> str:
+    """Which file the list came from, for an error message that can be acted on."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import deploy
+    return deploy.LOADED_FROM.name if deploy.LOADED_FROM else "the registry"
+
+
 def local_config() -> dict:
     """Read nr.local.json, tolerating the // header the example file carries.
 
@@ -194,7 +201,8 @@ def main() -> int:
 
     inst = next((i for i in all_instances if i["name"] == name), None)
     if not inst:
-        sys.exit(f"no instance named {name} in registry.yml")
+        sys.exit(f"no instance named {name} in {registry_source()}.\n"
+                 f"  Known: {', '.join(i['name'] for i in all_instances)}")
     return act(action, inst, cfg, baked="--baked" in flags)
 
 
