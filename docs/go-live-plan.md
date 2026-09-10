@@ -63,7 +63,7 @@ Bisher existiert `drift-check.py` nur als CLI-Tool. Für den Team-Alltag fehlt n
 
 - [ ] CI-Stufe ergänzen, die `drift-check.py --all --json` regelmäßig laufen lässt (z. B. täglich, geplanter Jenkins-Job) und das JSON in eine einfache statische HTML-Seite rendert.
 - [ ] Seite veröffentlichen (GitLab Pages o. ä.) — schreibgeschützt, ohne Deploy-Button (bewusst, siehe Entscheidung 11).
-- [ ] Zeigt pro Instanz: Git-Status (clean/drifted), Flow-Version, Image-Tag, letzter Deploy-Zeitpunkt.
+- [ ] Zeigt pro Instanz: Git-Status (`clean` / `behind` / `drifted`), Flow-Version, Image-Tag, letzter Deploy-Zeitpunkt. `behind` heißt „committet, noch nicht deployt" und ist Arbeit im Gang; `drifted` heißt „im Browser editiert" und braucht eine Entscheidung. Die Seite darf die zwei nicht in einen Topf werfen, sonst ist sie voller Fehlalarme.
 
 **Das ist der Punkt, an dem man es dem Team zeigen kann**, ohne dass jemand eine CLI bedienen muss: eine Seite, ein Blick, klarer Status pro Instanz.
 

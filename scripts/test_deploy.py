@@ -227,6 +227,31 @@ with _tf.TemporaryDirectory() as d:
     check("--json carries the machine-readable report",
           report[0]["state"] == "drifted" and report[0]["changed_lines"] > 0, str(report)[:200])
 
+# A flow that matches a commit is a pending deploy, not a browser edit. The
+# instance serves what HEAD holds while the working tree has moved on.
+LIVE = ROOT / "apps" / "wag-prod" / "flows.json"
+_keep = LIVE.read_bytes()
+try:
+    STATE["flows"] = json.loads(
+        subprocess.run(["git", "show", "HEAD:apps/wag-prod/flows.json"],
+                       cwd=ROOT, capture_output=True, text=True).stdout)
+    working = list(STATE["flows"]) + [
+        {"id": "0bee1111cafe2222", "type": "tab", "label": "not deployed yet",
+         "disabled": False, "info": ""}]
+    LIVE.write_text(json.dumps(working, indent=2) + "\n", encoding="utf-8")
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "normalize.py"), "--write", str(LIVE)],
+                   capture_output=True)
+
+    r = drift("--instance", "wag-prod")
+    check("a running flow that matches a commit reads as behind, not drifted",
+          "behind" in r.stdout and "drifted  " not in r.stdout, r.stdout[:300])
+    check("and names the commit it is running", "a deploy is pending" in r.stdout)
+
+    r = drift("--instance", "wag-prod", "--fail-on-drift")
+    check("--fail-on-drift stays green for a pending deploy", r.returncode == 0, f"rc={r.returncode}")
+finally:
+    LIVE.write_bytes(_keep)
+
 check("drift-check offers no way to write",
       not any(flag in DRIFT.read_text(encoding="utf-8")
               for flag in ("--fix", "--force", "--repair", "--reconcile")))

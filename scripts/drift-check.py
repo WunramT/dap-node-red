@@ -17,9 +17,24 @@ behind nginx, some publish a port, some neither.
 
 The table in docs/runbook.md lists them.
 
-Exit codes: 0 clean, 1 unreachable or unauthorized, 3 drift found. Drift is
-only an error where a schedule wants to go red for it, so 3 requires
---fail-on-drift; without it drift is reported and the exit stays 0.
+A difference between an instance and Git has two causes that deserve different
+answers, so they get different names:
+
+    behind    the running flow matches an earlier commit of this file. Somebody
+              changed the flow in Git and has not deployed it yet — the normal
+              state while work is in progress, and it needs a deploy, not a
+              decision.
+    drifted   the running flow matches no commit. It was edited in the browser,
+              which is the case decision 3 exists for: capture it, do not
+              overwrite it.
+
+Telling them apart needs the repository, so it only happens where the checkout
+is. On a site host, or anywhere git cannot answer, both collapse back to
+`drifted` and nothing is claimed that was not checked.
+
+Exit codes: 0 clean or behind, 1 unreachable or unauthorized, 3 drift found.
+Drift is only an error where a schedule wants to go red for it, so 3 requires
+--fail-on-drift; a pending deploy never does, because nobody bypassed anything.
 """
 
 from __future__ import annotations
@@ -27,6 +42,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -35,6 +51,32 @@ from deploy import (  # noqa: E402
     ROOT, base_url_for, env_credentials, get_token, load_instances, request, resolve_base,
 )
 from normalize import normalize, render  # noqa: E402
+
+
+def committed_versions(app: str, limit: int = 20) -> list[tuple[str, str]]:
+    """This flow file as of each recent commit, normalized, newest first.
+
+    Only for telling a pending deploy from a browser edit. Without a repository
+    — on a site host — this is empty and the caller says nothing about which of
+    the two it is.
+    """
+    log = subprocess.run(["git", "log", f"-n{limit}", "--format=%H", "--",
+                          f"apps/{app}/flows.json"],
+                         cwd=ROOT, capture_output=True, text=True)
+    if log.returncode != 0:
+        return []
+
+    versions = []
+    for sha in log.stdout.split():
+        blob = subprocess.run(["git", "show", f"{sha}:apps/{app}/flows.json"],
+                              cwd=ROOT, capture_output=True, text=True)
+        if blob.returncode != 0:
+            continue
+        try:
+            versions.append((sha, render(normalize(json.loads(blob.stdout)))))
+        except (json.JSONDecodeError, ValueError):
+            continue        # a commit where the file was not yet valid
+    return versions
 
 
 def inspect(inst: dict) -> dict:
@@ -73,8 +115,19 @@ def inspect(inst: dict) -> dict:
     diff = [line for line in difflib.unified_diff(
         before.splitlines(), after.splitlines(),
         fromfile=f"running/{name}", tofile=f"git/apps/{app}", lineterm="", n=3)]
+
+    # Does what is running match something that was committed? Then Git moved on
+    # and the instance did not: a deploy is pending, nobody edited anything.
+    state, detail = "drifted", None
+    for sha, version in committed_versions(app):
+        if version == before:
+            state = "behind"
+            detail = f"running commit {sha[:8]}, Git has moved on — a deploy is pending"
+            break
+
     return {
-        **result, "state": "drifted", "rev": rev,
+        **result, "state": state, "rev": rev,
+        **({"detail": detail} if detail else {}),
         "nodes_running": len(running), "nodes_git": len(committed),
         "changed_lines": sum(1 for line in diff
                              if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))),
@@ -107,10 +160,12 @@ def main() -> int:
     print(f"{'instance':<{width}}  {'state':<11}  detail")
     print("-" * (width + 40))
     for r in results:
+        drift_detail = (f"{r.get('changed_lines')} changed lines "
+                        f"({r.get('nodes_running')} nodes running, {r.get('nodes_git')} in Git)")
         detail = {
             "clean": lambda: f"{r.get('nodes')} nodes, rev {r.get('rev')}",
-            "drifted": lambda: f"{r['changed_lines']} changed lines "
-                               f"({r['nodes_running']} nodes running, {r['nodes_git']} in Git)",
+            "drifted": lambda: drift_detail,
+            "behind": lambda: f"{r.get('detail')} — {drift_detail}",
             "unreachable": lambda: r.get("detail", ""),
             "no-app": lambda: "no flow of its own",
         }[r["state"]]()
@@ -118,7 +173,7 @@ def main() -> int:
 
     if args.show_diff:
         for r in results:
-            if r["state"] == "drifted":
+            if r["state"] in ("drifted", "behind"):
                 print(f"\n{'=' * 70}\n{r['instance']}\n{'=' * 70}")
                 print("\n".join(r["diff"]))
 
@@ -128,10 +183,13 @@ def main() -> int:
         print(f"\nwrote {args.json}")
 
     counts = {state: sum(1 for r in results if r["state"] == state)
-              for state in ("clean", "drifted", "unreachable", "no-app")}
-    print(f"\n{counts['clean']} clean, {counts['drifted']} drifted, "
+              for state in ("clean", "behind", "drifted", "unreachable", "no-app")}
+    print(f"\n{counts['clean']} clean, {counts['behind']} behind, {counts['drifted']} drifted, "
           f"{counts['unreachable']} unreachable, {counts['no-app']} without an app")
 
+    if counts["behind"]:
+        print("\n'behind' is work in progress, not a problem: Git holds a newer flow than the\n"
+              "instance runs. Deploy it.")
     if counts["drifted"]:
         print("\nDrift is not a failure to repair — it is a browser edit that is not in Git.\n"
               "Capture it: docs/runbook.md, 'On 409'.")
