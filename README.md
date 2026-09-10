@@ -145,6 +145,43 @@ python3 scripts/nr.py status     # which instances still match Git
 `.devcontainer/` brings Python, the dependencies and Docker access for the local
 editor, so the commands above work the same inside VS Code.
 
+## What each piece does
+
+`nr.py` is the front door; everything below it can also be called directly.
+
+| Action | What it does, and when |
+|---|---|
+| `nr.py` | The one entry point: asks which instance and which action, so the instance list lives only in `registry.yml`. Start here. |
+| `nr.py status` | Table of every instance and whether it still matches Git — the morning check, and what tells you if someone edited in a browser. |
+| `nr.py check <inst>` | The same question for one instance, with the diff. Run it before every promotion and before every deploy. |
+| `nr.py edit <inst>` | Starts a local Node-RED on a copy of that app with **every tab disabled**, so you enable the one you work on. The way to change a flow without touching a running instance; add `--baked` when the flow uses palette nodes, `--isolated` when it must not reach anything. |
+| `nr.py capture <inst>` | Reads the running flow back into `apps/` so it can be committed. The recovery from a browser edit, and the only path from an instance back into Git. |
+| `nr.py deploy <inst>` | Dry run only, on purpose — shows what a deploy would change. A real deploy is a reviewed commit that Jenkins carries out. |
+| `nr.py promote <a> <b> <tab>` | Moves one tab and its dependencies between two apps: `--copy` prod → workbench (arrives disabled), `--move` workbench → prod (arrives enabled). The two change loops are built out of this. |
+
+| Script | What it does, and when |
+|---|---|
+| `deploy.py` | Posts one app's flow to its instance through the Admin API, against a `rev` — with `--expect-rev` it refuses when the instance moved since the diff was reviewed. What Jenkins runs; never run it by hand against production. |
+| `drift-check.py` | Compares every instance against Git and reports `clean` / `drifted` / `unreachable` / `no-app`, writing JSON with `--json`. Read-only by construction, so it is safe at any time — and it has no flag that writes. |
+| `capture.py` | Fetches a running flow, normalizes it and writes it into `apps/<app>/`. The return path: after a browser edit, or on a `409`. |
+| `promote.py` | Copies or moves a tab between two `apps/` directories with its config nodes and subflows, never overwriting the destination's own. Called through `nr.py promote`, which translates instance names to app directories. |
+| `normalize.py` | Sorts and canonicalizes a `flows.json` so a two-line change diffs as two lines — `--check` in CI, `--write` after every editor session. Run it before every commit of a flow. |
+| `validate-registry.py` | Checks `registry.yml` against the schema plus the rules a schema cannot express, such as "no floating image tags". Runs in CI on every push; run it yourself after editing the registry. |
+| `collect-inventory.py` | Reads every host over SSH and reports what is actually deployed — versions, palettes, `admin_root`, whether `adminAuth` and `credentialSecret` exist, never their values. Run it when the estate changed under you, or to re-derive a fact this repo asserts. |
+| `scaffold-apps.py` | Built the twelve `apps/` directories once out of `samples/`, and now leaves existing apps alone. Only for a new app, or with `--force` when you mean to discard local work. |
+| `gen-image-pipeline.py` | Regenerates `apps/build-image-pipeline.yml` from `registry.yml` — one build-and-sign job per app, three running at a time. Run it after adding or removing an instance. |
+| `test_normalize.py`, `test_deploy.py`, `test_nr.py`, `test_promote.py` | The four suites: normalizer properties, the deploy against a stub Admin API, the editor session round-trip, and the promotion rules. All four run in CI; run them before pushing anything under `scripts/`. |
+
+| Not a script | What it is, and when it matters |
+|---|---|
+| `registry.yml` + `schemas/registry.schema.json` | The single source of truth for what runs where — host, compose service, `admin_root`, image tag, credential ids. Every tool reads it; nothing hard-codes an instance. |
+| `apps/<app>/flows.json` | The flow, as Git holds it. This is what gets deployed, and it opens unchanged in the editor. |
+| `apps/<app>/package.json` + `Dockerfile` | That app's palette, and the image built from it. Editing the first is the palette path: rebuild, then a restart. |
+| `compose/editor.yml` | The local editor container `nr.py edit` starts, pinned to the instance's Node-RED version. Read it if you need to know what the editor can reach. |
+| `Jenkinsfile` | The deploy pipeline: reads the registry, carries `deploy.py` and the flow to the target host over SSH, and runs it there. `INSTANCE`, `DRY_RUN`, `EXPECT_REV`, `DEPLOY_PALETTE`. |
+| `.gitlab-ci.yml` | Validation and image builds: registry against the schema, every committed flow normalized, the four test suites, then build and sign. Nothing here deploys. |
+| `samples/` | The flows as first captured, untouched since. The reference for "what did this look like before the project". |
+
 The individual commands:
 ```bash
 pip install -r scripts/requirements.txt
