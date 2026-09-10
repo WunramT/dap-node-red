@@ -214,10 +214,38 @@ A refused connection means the opposite: nothing is listening, so the instance o
 
 ## Palette change
 
-1. Edit `apps/<app>/package.json`.
-2. Commit — GitLab CI builds and signs a new image.
-3. Update `image_tag` in `registry.yml` to the new exact tag.
-4. Jenkins recreates that one service. This restarts the container; the ingest gap is expected here.
+A new palette module does **not** travel with a flow deploy. `POST /flows`
+carries flow logic and installs nothing, so a flow whose nodes the target image
+does not have deploys "successfully" and then logs `Unrecognised node type` and
+does not run. The palette is the second transport, and it restarts the
+container.
+
+**Installing a module through "Manage palette" in the local editor changes
+nothing that ships.** It writes into the session's `/data`, which is
+`.editor-session/<app>/` — gitignored, and `nr.py` copies only `flows.json`
+back out of it. Useful for trying the nodes out; invisible to everything else.
+
+That local install is still worth one thing: it resolved a concrete version.
+Read it out of the session and put *that* into the app, so what CI builds is
+what you tried:
+
+```bash
+python3 -c "import json;print(json.load(open('.editor-session/<app>/package.json'))['dependencies'])"
+```
+
+1. Add the dependency to `apps/<app>/package.json` with an exact version.
+2. Commit — GitLab CI builds and signs a new image. The tag is
+   `<node-red-version>-<palette build>`, so the suffix goes up:
+   `wfm-test:4.0.9-1` becomes `wfm-test:4.0.9-2`.
+3. Update `image_tag` in `registry.yml` to that exact tag. `latest` fails
+   validation (decision 5).
+4. Jenkins with `DEPLOY_PALETTE=true`, `DRY_RUN=false`. It deploys the flow
+   first and recreates the service after, which is the order that works: the
+   new container starts on the flow that was just written, with the palette it
+   needs. This restarts the container; the ingest gap is expected here.
+
+To see the new nodes in the local editor, `nr.py edit <inst> --baked` — but only
+after step 3, because `--baked` runs whatever `image_tag` names.
 
 ## Changing a flow
 
