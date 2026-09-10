@@ -117,6 +117,7 @@ cannot reach: [`docs/runbook.md`](docs/runbook.md), "Changing a flow".
 | [`docs/runbook.md`](docs/runbook.md) | backup gate, `credentialSecret` pinning, deploy, `409` recovery, drift check |
 | [`docs/open-questions.md`](docs/open-questions.md) | what is still unknown, and the command that answers it |
 | [`docs/go-live-plan.md`](docs/go-live-plan.md) | the remaining steps to a live, team-visible pipeline |
+| [`docs/wfm-prod-migration.md`](docs/wfm-prod-migration.md) | putting an instance that predates the pipeline under it, `wfm-prod` as the pattern |
 
 ## Status
 

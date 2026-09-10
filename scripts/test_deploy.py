@@ -34,6 +34,7 @@ STATE = {
     "flows": [],
     "require_auth": True,
     "stale": False,      # make POST see a rev that has moved on
+    "no_admin_auth": False,  # answer /auth/token the way an instance without adminAuth does
     "posted": None,
     "saw_deploy_type": None,
     "saw_auth": None,
@@ -57,6 +58,9 @@ class Stub(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(length) or b"{}")
 
         if self.path.endswith("/auth/token"):
+            # Node-RED registers this route only with adminAuth configured.
+            if STATE["no_admin_auth"]:
+                return self._send(404, {"error": "not found"})
             if body.get("username") == "admin" and body.get("password") == "secret":
                 return self._send(200, {"access_token": "tok-123", "token_type": "Bearer"})
             return self._send(401, {"error": "invalid"})
@@ -258,6 +262,19 @@ with _tf.TemporaryDirectory() as d:
 check("drift-check offers no way to write",
       not any(flag in DRIFT.read_text(encoding="utf-8")
               for flag in ("--fix", "--force", "--repair", "--reconcile")))
+
+# --- a 404 from /auth/token -------------------------------------------------
+# It has two causes — an admin_root that misses the instance's httpAdminRoot,
+# and adminAuth not being configured at all. Both were met in the field; a
+# message that names only one sends half the readers to the wrong file.
+STATE["no_admin_auth"] = True
+r = run("--instance", "wag-prod", "--dry-run")
+check("a 404 from /auth/token fails the run", r.returncode != 0, f"rc={r.returncode}")
+check("and the message names httpAdminRoot", "httpAdminRoot" in r.stderr, r.stderr[-400:])
+check("and adminAuth", "adminAuth" in r.stderr, r.stderr[-400:])
+check("and admin_root, the field to change", "admin_root" in r.stderr, r.stderr[-400:])
+check("and the file both live in", "settings.js" in r.stderr, r.stderr[-400:])
+STATE["no_admin_auth"] = False
 
 server.shutdown()
 print(f"\n{len(FAILED)} failed" if FAILED else "\nall passed")

@@ -137,6 +137,19 @@ python3 scripts/deploy.py --instance <name> --expect-rev <rev>     # writes only
 
 Sequence and the `rev` handshake: [`architecture.md`](architecture.md).
 
+**A `404` from `POST <admin_root>/auth/token` is one of two things**, and both are in the instance's own `settings.js`:
+
+- `httpAdminRoot` is set and `admin_root` in `registry.yml` does not carry it. The prefix belongs to the runtime, not to a reverse proxy, so it applies to a request that goes straight to the container as well. This is what `wfm-test` turned out to be.
+- `adminAuth` is not configured. Node-RED registers `/auth/token` only when it is, so every login attempt answers `404` rather than `401`.
+
+Read both off the instance rather than guessing which one it is:
+
+```bash
+docker exec <compose_service> grep -nE 'httpAdminRoot|adminAuth' /data/settings.js
+```
+
+`admin_root` is a per-instance fact, and `collect-inventory.py` probes it — it is not a value to copy from a sibling instance. `wag` and `srem` serve under a path, `wfm-prod` at the root; two instances on one host can differ.
+
 **Take the rev from the dry run into the deploy.** It is what makes the conflict abort reachable: a deploy without it reads the current rev and posts against it moments later, so a browser edit made before the run is inside that rev and gets flattened. With it, anything that changed the instance between the review and the write stops the write. In Jenkins the parameter is `EXPECT_REV`, and it belongs to one instance — a fleet run cannot pin it.
 
 ### Reaching an instance from a workstation
