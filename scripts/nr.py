@@ -314,11 +314,16 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
                 print(f"\nthe editor wrote no flow, so apps/{inst['app']}/flows.json is "
                       f"untouched.")
                 if code:
-                    print("  The compose run above failed. 'unauthorized ... action: pull'\n"
-                          "  is a missing registry login — and log in with the engine that\n"
-                          "  actually pulls: podman compose here hands off to\n"
-                          "  docker-compose, so the image comes through the Docker daemon.\n"
-                          "    docker login harbor.aks-infra.polipol-service.de")
+                    registry = inst["image_tag"].split("/", 1)[0]
+                    print(f"  The compose run above failed. 'unauthorized ... action: pull'\n"
+                          f"  is a missing registry login, and the login belongs to the engine\n"
+                          f"  that pulls — which is this one, whatever the compose provider is\n"
+                          f"  called: `{compose[0]} compose` points the provider at its own\n"
+                          f"  socket, so 'Error response from daemon' can be {compose[0]}\n"
+                          f"  answering through the Docker-compatible API.\n"
+                          f"    {compose[0]} login {registry}\n"
+                          f"  Then confirm the image is reachable before retrying:\n"
+                          f"    {compose[0]} pull {inst['image_tag']}")
             else:
                 added = merge_session(inst["app"], was)
                 print(f"\ncopied back into apps/{inst['app']}/flows.json"
