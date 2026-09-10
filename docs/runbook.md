@@ -211,7 +211,7 @@ python3 scripts/nr.py status     # every instance: does it still match Git?
 python3 scripts/nr.py edit wag-prod
 ```
 
-In VS Code the same actions are tasks — **Terminal → Run Task → Node-RED: …**. The dev container in `.devcontainer/` brings Python, the dependencies and access to Docker for the editor container.
+The dev container in `.devcontainer/` brings Python, the dependencies and access to Docker for the editor container, so these commands run unchanged inside VS Code.
 
 Where each instance answers and the login for it go in a gitignored `nr.local.json`; copy `nr.local.example.json`. A password left out is asked for at the prompt and is not stored.
 
@@ -338,7 +338,7 @@ destination config nodes alone.
 | `*-test` | B is usually faster; A also works |
 | a brand-new app | A — there is nothing running to conflict with |
 
-Note that `*-prod` and `*-test` on one host are **different applications**, not two stages of one. You cannot develop on test and promote to prod. That is why route A exists.
+Note that `*-prod` and `*-test` on one host are **different applications**, not two stages of one — separate flow files, separate config nodes, separate brokers. They are connected only where someone connects them deliberately, one tab at a time, through `promote` (above). A change does not flow from test to prod on its own.
 
 ## Drift check
 

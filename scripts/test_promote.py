@@ -93,7 +93,7 @@ try:
     code, out = run("--from", "wfm-test", "--to", "wfm-test", "--tab", "Pipeline-Test", "--copy")
     check("refuses the same app twice", code != 0 and "same app" in out)
 
-    code, out = run("--from", "wfm-prod", "--to", "wfm-test", "--tab", "gibt-es-nicht", "--copy")
+    code, out = run("--from", "wfm-prod", "--to", "wfm-test", "--tab", "no-such-tab", "--copy")
     check("names the tabs it does have", code != 0 and "Present:" in out, out)
 
     code, out = run("--from", "wfm-prod", "--to", "wfm-test", "--tab", "Flow 1")

@@ -1,102 +1,102 @@
-# Go-Live-Plan
+# Go-live plan
 
-Von hier bis zu dem Punkt, an dem das Team die Pipeline live sieht und nutzt. Stand: 2026-09-08.
+From here to the point where the team sees the pipeline live and uses it. As of 2026-09-08.
 
-Ausgangslage in einem Satz: Alle Bausteine (Registry, Normalizer, `apps/`, `deploy.py`, `drift-check.py`, Jenkinsfile) sind gebaut und für **eine** Instanz (`wag-prod`) dry-run-verifiziert — aber noch nie hat ein echtes `POST /flows` stattgefunden, und nur für `wag-prod` sind die Jenkins-Credentials nachweislich vorhanden. Hintergrund und Begründungen: [`architecture.md`](architecture.md), [`decisions.md`](decisions.md), [`open-questions.md`](open-questions.md), [`runbook.md`](runbook.md).
+Where we stand, in one sentence: every building block (registry, normalizer, `apps/`, `deploy.py`, `drift-check.py`, Jenkinsfile) is built and dry-run-verified for **one** instance (`wag-prod`) — but no real `POST /flows` has ever happened, and only for `wag-prod` are the Jenkins credentials demonstrably in place. Background and reasoning: [`architecture.md`](architecture.md), [`decisions.md`](decisions.md), [`open-questions.md`](open-questions.md), [`runbook.md`](runbook.md).
 
-Reihenfolge ist absichtlich: erst sehen, dann auf dem sichersten Kandidaten schreiben, dann erst in der Breite ausrollen. Kein Schritt überspringt den davor.
-
----
-
-## Phase 0 — Bestandsaufnahme über die ganze Flotte (kein Risiko)
-
-Rein lesend. Ziel: wissen, welche der 16 Instanzen aktuell mit Git übereinstimmen, bevor irgendwo geschrieben wird.
-
-**Erledigt am 2026-09-08** (Fleet-Dry-Run über Jenkins): 8 sauber (`cho-prod`, `cho-test`, `gor-prod`, `gor-test`, `jan-prod`, `jan-test`, `srem-prod`, `wag-prod`), 2 mit Drift (`srem-test` 1008 Zeilen, `wag-test` 37 Zeilen), `wfm-prod` nie erreicht (Jenkins-Credential fehlte).
-
-- [ ] `drift-check.py --all --json inventory/drift.json` **über Jenkins** laufen lassen, nicht von der Workstation — `srem-prod`, `srem-test` und `slu-prod` haben keinen veröffentlichten Port und sind nur vom Host aus erreichbar (`runbook.md`, "Reaching an instance from a workstation"). Ein neuer, kleiner Jenkins-Job (analog zum Deploy-Job, aber ohne Schreibpfad) ist dafür der richtige Ort.
-- [ ] Ergebnis pro Instanz festhalten: `clean` / `drifted` / `unreachable` / `no-app`.
-- [ ] Für jede `drifted`-Instanz: Diff sichten (`--show-diff`). Entscheiden pro Instanz — committen oder bewusst verwerfen (`runbook.md`, "On 409"). Diese Instanzen **nicht automatisiert anfassen**, bevor das entschieden ist.
-- [ ] Für jede `unreachable`-Instanz: Ursache klären (Credential fehlt? Host nicht erreichbar? `admin_root` falsch?).
-
-**Ergebnis dieser Phase:** eine Tabelle, die zeigt, wo ein späterer erster Deploy ein risikoloses No-Op wäre (`clean`) und wo vorher noch etwas zu tun ist.
+The order is deliberate: look first, then write on the safest candidate, then roll out in breadth. No step skips the one before it.
 
 ---
 
-## Phase 1 — Den Schreibpfad einmal echt beweisen (Kandidat: `wfm-test`)
+## Phase 0 — Take stock of the whole fleet (no risk)
 
-Bisher hat kein reales `POST /flows` stattgefunden — die Jenkins-Läufe waren No-Ops, weil die geprüften Instanzen bereits sauber waren. Das ist der wichtigste noch offene Beweis im ganzen Projekt.
+Read-only. The goal: know which of the 16 instances currently match Git, before anything is written anywhere.
 
-`wfm-test` ist dafür der richtige Ort: neue, leere Instanz auf echter Infrastruktur, mit einem Startflow in Git, der kein Fremdsystem berührt. Der erste echte Deploy schreibt dort also wirklich etwas — und kann nichts kaputt machen. `wag-prod` bleibt der Zweitkandidat, wenn der Pfad einmal bewiesen ist.
+**Done on 2026-09-08** (fleet dry run via Jenkins): 8 clean (`cho-prod`, `cho-test`, `gor-prod`, `gor-test`, `jan-prod`, `jan-test`, `srem-prod`, `wag-prod`), 2 drifted (`srem-test` 1008 lines, `wag-test` 37 lines), `wfm-prod` never reached (the Jenkins credential was missing).
 
-- [ ] `node-red-test` als zweiten Service in `/home/administrator/Base_Container/docker-compose.yml` auf `wfm-svr-lin01` anlegen: eigener Bind-Mount `./node-red-test/data`, Port `1881`, sonst identisch zu `node-red` (User, TZ, dns_search, dns).
-- [ ] Das Datenverzeichnis **mit `sudo`** auf `1004:1004` setzen und mit `ls -ldn` prüfen. Ohne das startet die Instanz, liest sauber und stirbt beim ersten Schreibzugriff — siehe `runbook.md`, "A new instance's /data must belong to the container user".
-- [ ] `adminAuth` und `credentialSecret` in dessen `settings.js` von Anfang an setzen — bei einer neuen Instanz gibt es nichts zu pinnen, der Wert wird einmal erzeugt und in eine Jenkins-Credential gelegt.
-- [ ] Jenkins-Credentials `nodered-wfm-test-auth` und `nodered-wfm-test-credsecret` anlegen.
-- [ ] Dry-Run: `INSTANCE=wfm-test`, `DRY_RUN=true` → erwartet ein Diff über die 4 Nodes des Startflows (die Instanz ist leer, Git nicht).
-- [ ] **Echter Deploy:** `DRY_RUN=false` → erwartet `deployed (200)`. Danach steht der Flow im Editor und der Inject-Node lässt sich manuell auslösen.
-- [ ] **409-Nachweis:** im Editor etwas ändern, **nicht** committen, Job erneut mit `DRY_RUN=false` → erwartet `409 CONFLICT`, Abbruch, keine Überschreibung. Das ist der Sicherheitsbeweis (Entscheidung 3), der einmal wirklich gesehen gehört, bevor Kolleg:innen sich darauf verlassen.
+- [ ] Run `drift-check.py --all --json inventory/drift.json` **through Jenkins**, not from a workstation — `srem-prod`, `srem-test` and `slu-prod` publish no port and are only reachable from their host (`runbook.md`, "Reaching an instance from a workstation"). A new, small Jenkins job (like the deploy job, but without the write path) is the right place for it.
+- [ ] Record the result per instance: `clean` / `drifted` / `unreachable` / `no-app`.
+- [ ] For every `drifted` instance: review the diff (`--show-diff`). Decide per instance — commit it or discard it deliberately (`runbook.md`, "On 409"). Do **not** touch these instances through automation before that decision is made.
+- [ ] For every `unreachable` instance: find the cause (missing credential? host not reachable? wrong `admin_root`?).
 
-**Ergebnis dieser Phase:** der komplette Schreibpfad (POST, `rev`-Handshake, 409-Abbruch) ist live bewiesen, nicht nur getestet.
+**Result of this phase:** a table showing where a later first deploy would be a risk-free no-op (`clean`) and where something has to happen first.
 
 ---
 
-## Phase 2 — Auf die restlichen `clean`-Instanzen ausrollen
+## Phase 1 — Prove the write path once, for real (candidate: `wfm-test`)
 
-Für jede Instanz, die in Phase 0 als `clean` gemeldet wurde (8 von 10 geprüften), plus `wag-prod` als erster echter Prod-Deploy:
+No real `POST /flows` has happened yet — the Jenkins runs were no-ops, because the instances checked were already clean. This is the most important proof still outstanding in the whole project.
 
-- [ ] Backup-Gate durchführen (wie in Phase 1).
-- [ ] `credentialSecret` pinnen.
-- [ ] Bei `wfm-prod` zusätzlich: `adminAuth` aktivieren (aktuell offen, `runbook.md` Schritt 2) — das ist die einzige Instanz mit einer echten Sicherheitslücke, sollte vorgezogen werden statt bis zum Schluss zu warten.
-- [ ] `wfm-test` ist neu und damit der eigentliche Erstkandidat: leere Instanz, echter Deploy aus Git, kein Produktionsrisiko. Erst danach `wfm-prod`.
-- [ ] Bei `cho-prod` zusätzlich: `level: "info"` statt `"trace"` (Entscheidung 13).
-- [ ] Jenkins-Credential für `auth_credential_id` und `credential_secret_id` anlegen, sofern noch nicht vorhanden — Phase 0 sollte über `unreachable` bereits zeigen, wo das fehlt.
-- [ ] Einmal `DRY_RUN=true` je Instanz zur Kontrolle, dann `DRY_RUN=false`.
+`wfm-test` is the right place for it: a new, empty instance on real infrastructure, with a starter flow in Git that touches no foreign system. So the first real deploy genuinely writes something there — and can break nothing. `wag-prod` stays the second candidate once the path is proven.
 
-Instanzen mit Drift aus Phase 0 laufen **nicht** automatisch mit — die sind erst nach der bewussten Commit/Verwerfen-Entscheidung an der Reihe.
+- [ ] Add `node-red-test` as a second service in `/home/administrator/Base_Container/docker-compose.yml` on `wfm-svr-lin01`: its own bind mount `./node-red-test/data`, port `1881`, otherwise identical to `node-red` (user, TZ, dns_search, dns).
+- [ ] Set the data directory to `1004:1004` **with `sudo`** and verify with `ls -ldn`. Without that the instance starts, reads cleanly and dies on the first write — see `runbook.md`, "A new instance's /data must belong to the container user".
+- [ ] Set `adminAuth` and `credentialSecret` in its `settings.js` from the start — on a new instance there is nothing to pin, the value is generated once and put into a Jenkins credential.
+- [ ] Create the Jenkins credentials `nodered-wfm-test-auth` and `nodered-wfm-test-credsecret`.
+- [ ] Dry run: `INSTANCE=wfm-test`, `DRY_RUN=true` → expect a diff covering the 4 nodes of the starter flow (the instance is empty, Git is not). Note the `rev` it prints.
+- [ ] **Real deploy:** `DRY_RUN=false`, `EXPECT_REV=<the rev from the dry run>` → expect `deployed (200)`. The flow is then in the editor and the inject node can be triggered by hand.
+- [ ] **The `409` proof:** change something in the editor, do **not** commit it, then run the job again with `DRY_RUN=false` and the `EXPECT_REV` from *before* that change → expect the conflict abort, exit 2, nothing overwritten. Taking the rev from the dry run into the deploy is what makes this reachable: without it the deploy reads the current rev and posts against it moments later, so the browser edit sits inside that rev and gets flattened (`runbook.md`, "Flow deploy"). This is the safety proof (decision 3), and it deserves to be seen once for real before colleagues rely on it.
 
----
-
-## Phase 3 — Sichtbarkeit für alle (die Drift-Seite)
-
-Bisher existiert `drift-check.py` nur als CLI-Tool. Für den Team-Alltag fehlt noch die in `decisions.md` (Entscheidung 11) vorgesehene statische Übersichtsseite.
-
-- [ ] CI-Stufe ergänzen, die `drift-check.py --all --json` regelmäßig laufen lässt (z. B. täglich, geplanter Jenkins-Job) und das JSON in eine einfache statische HTML-Seite rendert.
-- [ ] Seite veröffentlichen (GitLab Pages o. ä.) — schreibgeschützt, ohne Deploy-Button (bewusst, siehe Entscheidung 11).
-- [ ] Zeigt pro Instanz: Git-Status (clean/drifted), Flow-Version, Image-Tag, letzter Deploy-Zeitpunkt.
-
-**Das ist der Punkt, an dem man es dem Team zeigen kann**, ohne dass jemand eine CLI bedienen muss: eine Seite, ein Blick, klarer Status pro Instanz.
+**Result of this phase:** the complete write path (POST, `rev` handshake, conflict abort) is proven live, not just tested.
 
 ---
 
-## Phase 4 — Palette-Pfad einmal testen
+## Phase 2 — Roll out to the remaining `clean` instances
 
-Bisher nur der Flow-Deploy-Pfad (kein Restart) real getestet. Der zweite Transport — Image-Rebuild + Neustart — ist noch komplett unbewiesen.
+For every instance reported `clean` in phase 0 (8 of the 10 checked), plus `wag-prod` as the first real prod deploy:
 
-- [ ] Auf einer Test-Instanz (z. B. `wag-test`) eine harmlose Änderung an `apps/wag-test/package.json` vornehmen, committen.
-- [ ] Prüfen, dass GitLab CI ein neues Image baut und signiert.
-- [ ] `image_tag` in `registry.yml` auf den neuen Tag setzen.
-- [ ] Jenkins-Job mit `DEPLOY_PALETTE=true`, `DRY_RUN=false` laufen lassen — bewusst außerhalb der Kernarbeitszeit, weil das den Container neu startet (Ingest-Lücke erwartet, siehe `architecture.md`).
+- [ ] Run the backup gate (as in phase 1).
+- [ ] Pin `credentialSecret`.
+- [ ] For `wfm-prod` additionally: turn on `adminAuth` (currently open, `runbook.md` step 2) — it is the one instance with a real security hole, and should be pulled forward rather than left until last.
+- [ ] `wfm-test` is new and therefore the actual first candidate: empty instance, real deploy from Git, no production risk. Only then `wfm-prod`.
+- [ ] For `cho-prod` additionally: `level: "info"` instead of `"trace"` (decision 13).
+- [ ] Create the Jenkins credentials for `auth_credential_id` and `credential_secret_id` where they are still missing — phase 0 should already show that through `unreachable`.
+- [ ] One `DRY_RUN=true` per instance as a check, then `DRY_RUN=false`.
 
----
-
-## Danach: die zwei Dinge, die weiterhin offen bleiben
-
-Diese blockieren **nicht** das "live zeigen" — sie betreffen nur die 2 FlowFuse-Instanzen bzw. 2 leere Instanzen, nicht die 12 bereits fertigen Apps:
-
-- **FlowFuse-Migration** (`pod-svr-lin01`, `dpn-svr-iot`): blockiert auf dem Credential-Key für `flows_cred.json` (offene Frage 1). Eigenes Vorhaben, nach Phase 2.
-- **`slu-prod` / `slu-test`**: leer, keine Entscheidung, wofür sie genutzt werden. Kein `apps/`-Verzeichnis, bis das geklärt ist.
+Instances that drifted in phase 0 do **not** come along automatically — their turn comes after the deliberate commit-or-discard decision.
 
 ---
 
-## Kurz zusammengefasst
+## Phase 3 — Visibility for everyone (the drift page)
 
-| Phase | Was | Risiko | Ergebnis |
+So far `drift-check.py` exists only as a CLI tool. For everyday team use, the static overview page foreseen in `decisions.md` (decision 11) is still missing.
+
+- [ ] Add a CI stage that runs `drift-check.py --all --json` regularly (e.g. daily, a scheduled Jenkins job) and renders the JSON into a simple static HTML page.
+- [ ] Publish the page (GitLab Pages or similar) — read-only, no deploy button (deliberately, see decision 11).
+- [ ] Shows per instance: Git status (clean/drifted), flow version, image tag, last deploy time.
+
+**This is the point where it can be shown to the team**, without anyone having to operate a CLI: one page, one glance, a clear status per instance.
+
+---
+
+## Phase 4 — Test the palette path once
+
+Only the flow deploy path (no restart) has been tested for real so far. The second transport — image rebuild plus restart — is still entirely unproven.
+
+- [ ] On a test instance (e.g. `wag-test`), make a harmless change to `apps/wag-test/package.json` and commit it.
+- [ ] Check that GitLab CI builds and signs a new image.
+- [ ] Set `image_tag` in `registry.yml` to the new tag.
+- [ ] Run the Jenkins job with `DEPLOY_PALETTE=true`, `DRY_RUN=false` — deliberately outside core hours, because it restarts the container (an ingest gap is expected, see `architecture.md`).
+
+---
+
+## After that: the two things that stay open
+
+These do **not** block "showing it live" — they concern only the 2 FlowFuse instances and 2 empty instances, not the 12 apps already finished:
+
+- **FlowFuse migration** (`pod-svr-lin01`, `dpn-svr-iot`): blocked on the credential key for `flows_cred.json` (open question 1). Its own undertaking, after phase 2.
+- **`slu-prod` / `slu-test`**: empty, no decision on what they are for. No `apps/` directory until that is settled.
+
+---
+
+## In short
+
+| Phase | What | Risk | Result |
 |---|---|---|---|
-| 0 | Drift-Check über alle 16 Instanzen | keins (lesend) | **erledigt** — 8 clean, 2 drifted, 1 blockiert |
-| 1 | `wfm-test` aufsetzen, erster echter Deploy dorthin | keins (neue, leere Instanz) | Schreibpfad + 409-Fall live bewiesen |
-| 2 | Rollout auf alle `clean`-Instanzen, `wag-prod` zuerst | gering, Muster wiederholt sich | Alle 12 Apps laufen über die Pipeline |
-| 3 | Statische Drift-Seite | keins | Zeigbar fürs ganze Team, ohne CLI |
-| 4 | Palette-Pfad einmal testen | mittel (Neustart) | Zweiter Transport bewiesen |
+| 0 | Drift check across all 16 instances | none (read-only) | **done** — 8 clean, 2 drifted, 1 blocked |
+| 1 | Set up `wfm-test`, first real deploy to it | none (new, empty instance) | write path + `409` case proven live |
+| 2 | Roll out to all `clean` instances, `wag-prod` first | low, the pattern repeats | all 12 apps run through the pipeline |
+| 3 | Static drift page | none | showable to the whole team, without a CLI |
+| 4 | Test the palette path once | medium (restart) | second transport proven |
 
-**"Live" im Sinne von "kann dem Team gezeigt und genutzt werden"** ist realistisch nach Phase 3 erreicht: reale Deploys laufen für alle fertigen Instanzen über die Pipeline, und es gibt eine Seite, die jeder ohne Vorwissen lesen kann.
+**"Live" in the sense of "can be shown to and used by the team"** is realistically reached after phase 3: real deploys run through the pipeline for every finished instance, and there is a page anyone can read without prior knowledge.
