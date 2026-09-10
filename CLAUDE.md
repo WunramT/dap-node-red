@@ -2,13 +2,14 @@
 
 Node-RED multi-instance deployment. Git holds the flows, CI deploys them. 16 runtimes across 10 servers: 14 plain instances and 2 under FlowFuse, which are migrated to plain containers as part of this project. No two instances share a flow — every one is its own application.
 
-Read before working:
+Start with [`README.md`](README.md), which is the working cheatsheet. Then, for
+anything non-obvious:
 
-- [`docs/architecture.md`](docs/architecture.md) — the system: repo layout, the two transports, the deploy sequence, measured environment facts
-- [`docs/decisions.md`](docs/decisions.md) — closed decisions and why. Check here before proposing a different approach
-- [`docs/open-questions.md`](docs/open-questions.md) — what is still unknown and which command answers it
-- [`docs/registry.md`](docs/registry.md) — `registry.yml` fields and validation rules
-- [`docs/runbook.md`](docs/runbook.md) — backup gate, `credentialSecret` pinning, deploy, `409` recovery, drift check
+- [`docs/architecture.md`](docs/architecture.md) is the system and the measured facts about the estate.
+- [`docs/decisions.md`](docs/decisions.md) holds closed decisions. Read it before proposing a different approach.
+- [`docs/open-questions.md`](docs/open-questions.md) names what is unknown and the command that answers it.
+- [`docs/registry.md`](docs/registry.md) is the `registry.yml` field reference.
+- [`docs/runbook.md`](docs/runbook.md) is how it is operated.
 
 ## Constraints
 
@@ -22,10 +23,15 @@ These hold across every task in this repo. Each traces to a decision in `docs/de
 
 ## Working here
 
-Flow deploys are daily and must not restart a container. Palette deploys are rare and may. Any design that restarts a container to change flow logic is the wrong design.
+Flow deploys are daily and must not restart a container. Palette deploys are
+rare and may. Any design that restarts a container to change flow logic is the
+wrong design.
 
-Build `normalize.py` first, against the sample flows in `samples/`. It depends on none of the open questions, and it is the cheapest test of whether the whole approach produces reviewable diffs — if a 226-node flow does not diff readably, that is worth knowing before anything else is built.
+`scripts/nodered.py` is the shared library: the instance list, where an
+instance answers, the Admin API, image tags. Jenkins ships it and `deploy.py`
+to the target host, so both are standard library only. Everything that needs to
+know an instance goes through it rather than reading `registry.yml` again.
 
-The repository layout still depends on open question 1 (whether the 16 `settings.js` files are one file or several), so hold off on `schemas/registry.schema.json` until the discovery reports are in.
-
-The `Jenkinsfile` is the one inherited from the project template — it deploys a FastAPI/Vue stack that no longer exists here. It stays because it holds the host map and per-host credential ids the new pipeline needs, and it is replaced rather than edited.
+`scripts/scaffold-apps.py` built `apps/` once from `samples/` and now leaves
+existing apps alone. `samples/` is the capture from before the project and does
+not move.

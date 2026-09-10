@@ -23,33 +23,39 @@ Read-only. The goal: know which of the 16 instances currently match Git, before 
 
 ---
 
-## Phase 1 — Prove the write path once, for real (candidate: `wfm-test`)
+## Phase 1 — Prove the write path (done, 2026-09-10)
 
-No real `POST /flows` has happened yet — the Jenkins runs were no-ops, because the instances checked were already clean. This is the most important proof still outstanding in the whole project.
+The write path is live, on both a workbench and a production instance:
 
-`wfm-test` is the right place for it: a new, empty instance on real infrastructure, with a starter flow in Git that touches no foreign system. So the first real deploy genuinely writes something there — and can break nothing. `wag-prod` stays the second candidate once the path is proven.
+- `wfm-test` took the first real `POST /flows` from Git.
+- `wfm-prod` was **cut over** to a new container named like the other hosts: the
+  flow deployed out of Git against a reviewed `rev`, credentials carried across
+  by hand because Git holds none (`runbook.md`, "Moving an instance to a new
+  container"), old container stopped first because the flow publishes every
+  five seconds.
 
-- [ ] Add `node-red-test` as a second service in `/home/administrator/Base_Container/docker-compose.yml` on `wfm-svr-lin01`: its own bind mount `./node-red-test/data`, port `1881`, otherwise identical to `node-red` (user, TZ, dns_search, dns).
-- [ ] Set the data directory to `1004:1004` **with `sudo`** and verify with `ls -ldn`. Without that the instance starts, reads cleanly and dies on the first write — see `runbook.md`, "A new instance's /data must belong to the container user".
-- [ ] Set `adminAuth` and `credentialSecret` in its `settings.js` from the start — on a new instance there is nothing to pin, the value is generated once and put into a Jenkins credential.
-- [ ] Create the Jenkins credentials `nodered-wfm-test-auth` and `nodered-wfm-test-credsecret`.
-- [ ] Dry run: `INSTANCE=wfm-test`, `DRY_RUN=true` → expect a diff covering the 4 nodes of the starter flow (the instance is empty, Git is not). Note the `rev` it prints.
-- [ ] **Real deploy:** `DRY_RUN=false`, `EXPECT_REV=<the rev from the dry run>` → expect `deployed (200)`. The flow is then in the editor and the inject node can be triggered by hand.
-- [ ] **The `409` proof:** change something in the editor, do **not** commit it, then run the job again with `DRY_RUN=false` and the `EXPECT_REV` from *before* that change → expect the conflict abort, exit 2, nothing overwritten. Taking the rev from the dry run into the deploy is what makes this reachable: without it the deploy reads the current rev and posts against it moments later, so the browser edit sits inside that rev and gets flattened (`runbook.md`, "Flow deploy"). This is the safety proof (decision 3), and it deserves to be seen once for real before colleagues rely on it.
+Still open on `wfm-svr-lin01`:
 
-**Result of this phase:** the complete write path (POST, `rev` handshake, conflict abort) is proven live, not just tested.
-
----
+- [ ] Remove the stopped `node-red` service from
+      `/home/administrator/Base_Container/docker-compose.yml`. Until then any
+      `docker compose up -d` on that file starts a second publisher. Leave
+      `node-red/data/` and the pre-cutover tarball on disk — that tarball is
+      the only copy of the credentials as they were.
+- [ ] The `409` abort has not been seen live yet. Change something in the
+      editor, do not commit it, then deploy with the `EXPECT_REV` from *before*
+      that change. Expect exit 2 and nothing written. Without `EXPECT_REV` the
+      run reads the current rev and posts against it moments later, so the edit
+      is inside that rev and gets flattened — the abort is only reachable with
+      the reviewed rev (`runbook.md`, "Flow deploy").
+- [ ] Run both change loops once end to end (README, "Change a tab" and "New
+      tab"), on `Flow 1` rather than the publishing tab.
 
 ## Phase 2 — Roll out to the remaining `clean` instances
 
-For every instance reported `clean` in phase 0 (8 of the 10 checked), plus `wag-prod` as the first real prod deploy:
+`wfm-prod` and `wfm-test` are done. For every instance reported `clean` in phase 0, `wag-prod` first:
 
 - [ ] Run the backup gate (as in phase 1).
 - [ ] Pin `credentialSecret`.
-- [ ] `wfm-prod` is not a rollout but a **cutover**, written out step by step in [`wfm-prod-migration.md`](wfm-prod-migration.md): the flow moves from the old `node-red` container to the empty `node-red-prod` that already stands beside it, and the credentials have to be carried by hand because Git holds none. The other eleven are the simpler case — their container stays.
-- [ ] For `wfm-prod` additionally: turn on `adminAuth` (currently open, `runbook.md` step 2) — it is the one instance with a real security hole, and should be pulled forward rather than left until last.
-- [ ] `wfm-test` is new and therefore the actual first candidate: empty instance, real deploy from Git, no production risk. Only then `wfm-prod`.
 - [ ] For `cho-prod` additionally: `level: "info"` instead of `"trace"` (decision 13).
 - [ ] Create the Jenkins credentials for `auth_credential_id` and `credential_secret_id` where they are still missing — phase 0 should already show that through `unreachable`.
 - [ ] One `DRY_RUN=true` per instance as a check, then `DRY_RUN=false`.

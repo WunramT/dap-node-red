@@ -11,7 +11,7 @@ Measured, not assumed — `scripts/collect-inventory.py` visited every host:
 | | |
 |---|---|
 | 6 servers with a dev/prod pair | `cho`, `gor`, `jan`, `slu`, `srem`, `wag` — 12 instances |
-| 1 server cut over | `wfm-svr-lin01` now runs `wfm-prod` out of `node-red-prod` (`adminAuth` on, `/node-red-prod`) beside the workbench `node-red-test`, like the other nine. The old `node-red` is stopped and still in the compose file until it is retired — [`wfm-prod-migration.md`](wfm-prod-migration.md), phase E |
+| 1 server cut over | `wfm-svr-lin01` now runs `wfm-prod` out of `node-red-prod` (`adminAuth` on, `/node-red-prod`) beside the workbench `node-red-test`, like the other nine. The old `node-red` is stopped and still in the compose file until it is retired (`go-live-plan.md`, phase 1) |
 | 2 servers under FlowFuse | `pod-svr-lin01`, `dpn-svr-iot` — migration targets, see below |
 | 1 server with no Node-RED at all | `foi-svr-lnx01` — NATS, iot-bridges, dashboards |
 

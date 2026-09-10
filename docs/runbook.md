@@ -18,6 +18,61 @@ Per instance, tar together:
 
 Then pull the tarballs off the box before anything else happens.
 
+## Moving an instance to a new container
+
+`wfm-prod` was done this way on 2026-09-10: the flow moved from the old
+`node-red` container to a `node-red-prod` named like the other hosts. Five
+things decide whether it works, and four of them are invisible if you skip
+them.
+
+**Git holds no credentials, and must not.** `GET /flows` never returns them, so
+a deploy into a fresh container carries the logic and neither the stored logins
+nor any uploaded certificate. Those live in the old container's
+`flows_cred.json`, encrypted with its key.
+
+**The key lives in two files, and both have to name the old one.**
+
+- `settings.js` → `credentialSecret`: the key to use from now on.
+- `/data/.config.runtime.json` → `_credentialSecret`: the key the file on disk
+  is actually encrypted with.
+
+When they differ, Node-RED reads with the second and re-encrypts with the
+first, which is how a rotation is meant to work — and why setting only
+`settings.js` decrypts with a key that never encrypted anything. The symptom is
+`Error loading credentials: ... is not valid JSON` with binary in the message,
+and the instance keeps running with no credentials at all. Set both, with the
+container stopped, and check with a fingerprint rather than by eye:
+
+```bash
+sudo python3 - <<'PY'
+import hashlib, json, pathlib, re
+OLD = pathlib.Path('<old>/data'); NEW = pathlib.Path('<new>/data')
+key = json.loads((OLD / '.config.runtime.json').read_text())['_credentialSecret']
+s, n = re.subn(r'(credentialSecret:\s*")[^"]*(")', lambda m: m.group(1) + key + m.group(2),
+               (NEW / 'settings.js').read_text(), count=1)
+assert n == 1, 'no active credentialSecret line'
+(NEW / 'settings.js').write_text(s)
+rt = NEW / '.config.runtime.json'
+data = json.loads(rt.read_text()) if rt.exists() else {}
+data['_credentialSecret'] = key
+rt.write_text(json.dumps(data))
+print('fingerprint:', hashlib.sha256(key.encode()).hexdigest()[:8])
+PY
+```
+
+**Do not press Deploy in the empty editor** between copying `flows_cred.json`
+and deploying the flow. Node-RED drops credentials belonging to no node when it
+saves, and until the flow lands there are no nodes.
+
+**Stop the old container before deploying the new one**, not after. Both hold
+the same flow the moment the deploy lands, and a flow that publishes would
+publish twice.
+
+**`restart: always` outlives a stop.** An explicit `docker compose stop` is
+remembered across a daemon restart, but any `docker compose up -d` on that file
+starts the service again, and one file usually holds every service on the host.
+Remove the service, do not just stop it.
+
 ## The one settings.js edit
 
 Every change to `settings.js` restarts the container. Three changes are pending — the `credentialSecret` pin, and on two instances a deviation to normalize — so they are made in one edit and one restart per instance, after the backup gate.
