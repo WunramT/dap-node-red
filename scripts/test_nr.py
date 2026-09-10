@@ -5,20 +5,55 @@ The session is a copy of an app's flow with every tab disabled, and on exit it
 is merged back. That merge is the part worth testing: it decides what of a local
 session reaches the repository, and getting it wrong either loses an edit or
 deploys a disabled tab to an instance.
+
+It runs against a fixture app in a temporary tree, not against a real one under
+apps/. Borrowing a live flow made the suite depend on estate data: it asserted
+that the workbench has a tab, and a workbench is supposed to be empty whenever
+nothing is being tested, so the first promotion that shipped a tab back to prod
+broke the tests. It also wrote into a real app file and restored it in a finally
+block, which is one crash away from leaving a production flow half merged.
 """
 
 import json
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO / "scripts"))
+import nodered  # noqa: E402
 import nr  # noqa: E402
+from normalize import normalize, render  # noqa: E402
 
 APP = "wfm-test"
-LIVE = ROOT / "apps" / APP / "flows.json"
 FAILED = []
+
+FIXTURE = [
+    {"id": "tab1", "type": "tab", "label": "First", "disabled": False, "info": ""},
+    {"id": "tab2", "type": "tab", "label": "Second", "disabled": True, "info": ""},
+    {"id": "n1", "type": "inject", "z": "tab1", "name": "Start", "wires": [["n2"]]},
+    {"id": "n2", "type": "debug", "z": "tab1", "name": "Ergebnis", "wires": []},
+    {"id": "n3", "type": "function", "z": "tab2", "name": "Off", "wires": []},
+    {"id": "c1", "type": "mqtt-broker", "name": "broker", "broker": "example"},
+]
+
+# nr.py and nodered.py both resolve paths from their own ROOT, so both move.
+TMP = Path(tempfile.mkdtemp(prefix="test_nr_"))
+ROOT = TMP
+nr.ROOT = TMP
+nr.SESSION = TMP / ".editor-session"
+nodered.ROOT = TMP
+(TMP / "apps" / APP).mkdir(parents=True)
+LIVE = TMP / "apps" / APP / "flows.json"
+# Written through the normalizer, because a committed flow is canonical and CI
+# enforces it. An uncanonical fixture would fail the round-trip check on key
+# order rather than on anything the merge did.
+LIVE.write_text(render(normalize(FIXTURE)), encoding="utf-8")
+(TMP / "apps" / APP / "package.json").write_text(json.dumps(
+    {"name": f"node-red-{APP}", "private": True,
+     "dependencies": {"node-red-contrib-opcua": "~0.2.339"}}, indent=2) + "\n", encoding="utf-8")
+(TMP / "registry.yml").write_bytes((REPO / "registry.yml").read_bytes())
 
 
 def check(label, condition, detail=""):
@@ -42,6 +77,7 @@ def write_staged(flows):
 print("nr.py editor session")
 original_bytes = LIVE.read_bytes()
 try:
+    check("the fixture has the tabs these tests need", len(tabs(json.loads(original_bytes))) == 2)
     # --- staging ----------------------------------------------------------
     data, was, labels = nr.stage_session(APP)
     check("session directory is not the app directory", data == f".editor-session/{APP}", data)
@@ -148,18 +184,22 @@ try:
         # A new palette is a new image, and the tag the deploy pins is in
         # registry.yml — so the bump belongs in the same commit, not in a
         # human's memory. CI pushes the tag it finds there.
-        REG = ROOT / "registry.yml"
+        REG = TMP / "registry.yml"
         reg_before = REG.read_bytes()
         try:
             inst = nr.nodered.find(APP)
+            was_tag = nr.nodered.tag_short(inst["image_tag"])
+            other_tag = nr.nodered.tag_short(nr.nodered.find("wfm-prod")["image_tag"])
             bumped = nr.bump_palette_tag(inst)
             check("the palette build is raised", bumped and bumped[1].endswith("-2"), str(bumped))
+            raised = nr.nodered.tag_short(bumped[1])
             after = REG.read_text(encoding="utf-8")
             check("only that instance's tag moved",
-                  after.count("wfm-test:4.0.9-2") == 1 and "wfm-prod:4.0.9-1" in after)
-            check("the comment on the line survives",
-                  "node-red-contrib-opcua" in after.split("wfm-test:4.0.9-2")[1].split("\n")[0],
-                  after.split("wfm-test:4.0.9-2")[1].split("\n")[0])
+                  after.count(raised) == 1 and other_tag in after, f"{raised} / {other_tag}")
+            check("the line keeps its trailing comment",
+                  "#" in after.split(raised)[1].split("\n")[0],
+                  after.split(raised)[1].split("\n")[0])
+            check("and the tag it replaced is gone", was_tag not in after, was_tag)
             check("and every other comment in the file survives",
                   after.count("#") == reg_before.decode().count("#"))
             check("a tag with no numeric build is refused, not guessed",
@@ -176,8 +216,7 @@ try:
     finally:
         APP_PKG.write_bytes(pkg_before)
 finally:
-    LIVE.write_bytes(original_bytes)
-    shutil.rmtree(nr.SESSION, ignore_errors=True)
+    shutil.rmtree(TMP, ignore_errors=True)
 
 print(f"\n{len(FAILED)} failed" if FAILED else "\nall passed")
 sys.exit(1 if FAILED else 0)
