@@ -270,10 +270,19 @@ check("drift-check offers no way to write",
 STATE["no_admin_auth"] = True
 r = run("--instance", "wag-prod", "--dry-run")
 check("a 404 from /auth/token fails the run", r.returncode != 0, f"rc={r.returncode}")
-check("and the message names httpAdminRoot", "httpAdminRoot" in r.stderr, r.stderr[-400:])
-check("and adminAuth", "adminAuth" in r.stderr, r.stderr[-400:])
-check("and admin_root, the field to change", "admin_root" in r.stderr, r.stderr[-400:])
-check("and the file both live in", "settings.js" in r.stderr, r.stderr[-400:])
+check("and the message names httpAdminRoot", "httpAdminRoot" in r.stderr, r.stderr[-600:])
+check("and adminAuth", "adminAuth" in r.stderr, r.stderr[-600:])
+check("and admin_root, the field to change", "admin_root" in r.stderr, r.stderr[-600:])
+check("and the file both live in", "settings.js" in r.stderr, r.stderr[-600:])
+# The prefix can belong to a proxy instead of the runtime — wfm-prod's does —
+# so the message must not claim it is the runtime's, and must offer the probe
+# that decides it.
+check("and warns that a proxy prefix is not the runtime's",
+      "reverse proxy" in r.stderr, r.stderr[-600:])
+check("and gives the no-password probe",
+      "curl" in r.stderr and "/flows" in r.stderr, r.stderr[-600:])
+check("and reads the probe's three answers",
+      all(code in r.stderr for code in ("401", "404", "200")), r.stderr[-600:])
 STATE["no_admin_auth"] = False
 
 server.shutdown()

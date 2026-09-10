@@ -139,16 +139,25 @@ Sequence and the `rev` handshake: [`architecture.md`](architecture.md).
 
 **A `404` from `POST <admin_root>/auth/token` is one of two things**, and both are in the instance's own `settings.js`:
 
-- `httpAdminRoot` is set and `admin_root` in `registry.yml` does not carry it. The prefix belongs to the runtime, not to a reverse proxy, so it applies to a request that goes straight to the container as well. This is what `wfm-test` turned out to be.
+- `admin_root` does not match the runtime. The deploy runs on the host and calls the container directly, so `admin_root` has to be the value of `httpAdminRoot` **in that runtime** — not the path the instance answers on in a browser. A reverse proxy in front of the host can add a prefix the runtime does not have, or strip one it does, and both were found here: `wag-prod` serves `/node-red-prod` itself and the proxy passes it through, while `wfm-prod` is reached in a browser as `http://wfm-svr-lin01/node-red-prod` but serves the API at `/` on the container, because nginx strips the prefix. So a `curl` that works from a workstation is not evidence about `admin_root`.
 - `adminAuth` is not configured. Node-RED registers `/auth/token` only when it is, so every login attempt answers `404` rather than `401`.
 
-Read both off the instance rather than guessing which one it is:
+One probe separates them, and it needs no password:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://<container-ip>:1880<admin_root>/flows
+#   401 → the path is right and adminAuth is on
+#   404 → admin_root is wrong for this instance
+#   200 → the path is right and adminAuth is off
+```
+
+Then read it off the runtime and make `registry.yml` match:
 
 ```bash
 docker exec <compose_service> grep -nE 'httpAdminRoot|adminAuth' /data/settings.js
 ```
 
-`admin_root` is a per-instance fact, and `collect-inventory.py` probes it — it is not a value to copy from a sibling instance. `wag` and `srem` serve under a path, `wfm-prod` at the root; two instances on one host can differ.
+`admin_root` is a per-instance fact — `collect-inventory.py` probes it against the container for exactly this reason — and never a value to copy from a sibling. Two instances on one host can differ, and the browser URL can differ from both.
 
 **Take the rev from the dry run into the deploy.** It is what makes the conflict abort reachable: a deploy without it reads the current rev and posts against it moments later, so a browser edit made before the run is inside that rev and gets flattened. With it, anything that changed the instance between the review and the write stops the write. In Jenkins the parameter is `EXPECT_REV`, and it belongs to one instance — a fleet run cannot pin it.
 
@@ -166,7 +175,7 @@ The pipeline runs `deploy.py` on the target host, where every instance is at `ht
 | `jan-prod` | `http://jan-svr-lin01:1880` |
 | `jan-test` | `http://jan-svr-lin01:1881` |
 | `slu-test` | `http://slu-svr-lin02:1882` |
-| `wfm-prod` | `http://wfm-svr-lin01:1880` |
+| `wfm-prod` | `http://wfm-svr-lin01:1880` — nginx also serves it as `http://wfm-svr-lin01/node-red-prod`, but that prefix is the proxy's and is not `admin_root` |
 | `wfm-test` | `http://wfm-svr-lin01:1881` |
 | `srem-prod`, `srem-test`, `slu-prod` | no published port — run on the host |
 

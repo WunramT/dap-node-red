@@ -147,8 +147,15 @@ Jenkins, `INSTANCE=wfm-prod`, `DRY_RUN=true`, `EXPECT_REV` empty.
 Expect `already up to date (19 nodes)`. This one run proves four things at
 once: the host map reaches `wfm-svr-lin01`, both Jenkins credentials resolve,
 `admin_root: ""` is right for this instance, and the token call works now that
-`adminAuth` is on. A `404` from `/auth/token` means `admin_root` or `adminAuth`
-— `runbook.md`, "Flow deploy".
+`adminAuth` is on.
+
+`admin_root` for this instance is `""`, and the browser URL is the reason to
+double-check that rather than to change it: nginx on `wfm-svr-lin01` serves the
+editor as `http://wfm-svr-lin01/node-red-prod` and strips that prefix before
+the container sees it. The deploy talks to the container. Setting `admin_root`
+to `/node-red-prod` because the browser and a workstation `curl` use it makes
+every call 404 — `runbook.md`, "Flow deploy", has the no-password probe that
+settles it.
 
 Do not run `DRY_RUN=false` yet. There is nothing to write, and the write path
 gets proven by the two tests below, where there is something to see.

@@ -32,7 +32,7 @@ instances:
 | `compose_file` | yes | absolute path to that host's compose file. Four different paths are in use — `code/node-red/`, `energy/`, `Base_Container/`, `base_container/` — so it cannot be derived and is stored |
 | `host` | yes | server the instance runs on; must appear in the Jenkins host map |
 | `app` | yes | directory under `apps/`, or `null` for a standalone instance whose flow is not shared |
-| `admin_root` | yes | value of `httpAdminRoot`, e.g. `/node-red-prod`. The API base path — the flows endpoint is `<base><admin_root>/flows` |
+| `admin_root` | yes | the **runtime's** `httpAdminRoot`, e.g. `/node-red-prod`. The API base path — the flows endpoint is `<base><admin_root>/flows`. The deploy calls the container directly, so this is what the runtime serves, not what a browser reaches through a proxy: on `wfm-prod` nginx serves `/node-red-prod` in front of a runtime whose root is `/`, so its `admin_root` is `""` |
 | `auth_credential_id` | yes | Jenkins credential holding the `adminAuth` user/password used for `POST <admin_root>/auth/token` |
 | `credential_secret_id` | yes | Jenkins credential holding this instance's pinned `credentialSecret` |
 | `dns_search` | no | DNS search domains for the container |

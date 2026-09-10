@@ -200,24 +200,31 @@ def request(url: str, *, method="GET", body=None, token=None, headers=None):
         # with the URL, because a bare status tells nobody what was called.
         if exc.code == 409:
             raise
-        # A 404 on /auth/token has two causes, and the generic message names
-        # neither of them by name. Both live in the instance's settings.js, so
-        # both are answered by reading it.
+        # A 404 on /auth/token says nothing about credentials, and the
+        # generic advice below sends the reader to the wrong file. Both causes
+        # are read off the instance, and neither is visible from a browser:
+        # a reverse proxy in front of the host can add a prefix the runtime
+        # does not have, or strip one it does.
         if exc.code == 404 and url.endswith("/auth/token"):
+            root = url[:-len("/auth/token")]
             raise SystemExit(
                 f"{method} {url} -> 404 Not Found\n"
-                "  Nothing serves the Admin API at that path. Two causes, both in\n"
-                "  the instance's settings.js:\n"
-                "    1. httpAdminRoot — the instance serves the API under a path,\n"
-                "       and admin_root in registry.yml does not carry it. This holds\n"
-                "       even when the request goes straight to the container: the\n"
-                "       prefix is the runtime's, not a reverse proxy's.\n"
-                "    2. adminAuth is not configured — Node-RED registers\n"
-                "       /auth/token only when it is, so login attempts 404.\n"
-                "  Read both off the instance:\n"
+                "  Nothing serves the Admin API there. Two causes:\n"
+                "    1. admin_root does not match the instance. It is the runtime's\n"
+                "       own httpAdminRoot — and this request goes straight to the\n"
+                "       container, past any reverse proxy. A path that works in a\n"
+                "       browser may be the proxy's, added or stripped in front of a\n"
+                "       runtime that serves something else.\n"
+                "    2. adminAuth is not configured. Node-RED registers /auth/token\n"
+                "       only when it is, so a login attempt 404s instead of failing.\n"
+                "  One probe tells them apart, and it needs no password:\n"
+                f"    curl -s -o /dev/null -w '%{{http_code}}\\n' {root}/flows\n"
+                "      401 -> the path is right and adminAuth is on: look elsewhere\n"
+                "      404 -> admin_root is wrong for this instance\n"
+                "      200 -> the path is right and adminAuth is off\n"
+                "  Then ask the runtime itself:\n"
                 "    docker exec <service> grep -nE 'httpAdminRoot|adminAuth' /data/settings.js\n"
-                "  Then make admin_root in registry.yml match — runbook.md,\n"
-                "  'The one settings.js edit'."
+                "  registry.md, 'admin_root'."
             ) from None
         raise SystemExit(
             f"{method} {url} -> {exc.code} {exc.reason}\n"
