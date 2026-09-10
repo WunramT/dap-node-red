@@ -12,7 +12,12 @@
     "ghcr.io/devcontainers/features/git:1": {}
   },
 
-  "postCreateCommand": "pip install --user -r scripts/requirements.txt && python3 scripts/validate-registry.py --emit-json",
+  // Prove the container before handing it over: install, validate the registry,
+  // run the suites. registry.json is deliberately not generated here — PyYAML
+  // exists in this container, and that file is the transport copy for hosts
+  // without it. A stale one in a working tree once shadowed the registry.
+  "postCreateCommand": ".devcontainer/setup.sh",
+  "waitFor": "postCreateCommand",
 
   "forwardPorts": [1880],
   "portsAttributes": {
@@ -23,7 +28,10 @@
     // compose/editor.yml mounts ../apps/$APP relative to itself. Inside this
     // container that path is the workspace; the docker daemon on the host needs
     // the host path, which this supplies.
-    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+    // The socket here is the host's Docker, so the editor uses docker even on a
+    // workstation whose own convention is podman.
+    "CONTAINER_ENGINE": "docker"
   },
 
   "customizations": {
