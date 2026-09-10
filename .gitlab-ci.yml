@@ -99,6 +99,7 @@ validate:normalize:
     - python3 scripts/test_deploy.py
     - python3 scripts/test_nr.py
     - python3 scripts/test_promote.py
+    - python3 scripts/test_bump.py
     # No apps/ yet — the glob matches nothing and the job passes until there is
     # something to check. Once apps/ exists this fails on any un-normalized flow.
     - 'shopt -s nullglob; files=(apps/*/flows.json); [ ${#files[@]} -eq 0 ] || python3 scripts/normalize.py --check "${files[@]}"'

@@ -254,6 +254,56 @@ Removing a module is therefore a manual edit of `apps/<app>/package.json`.
 To see the new nodes in the local editor, `nr.py edit <inst> --baked` — but only
 after step 3, because `--baked` runs whatever `image_tag` names.
 
+## Node-RED version upgrade
+
+The estate runs three versions, because every instance was first started on a
+different date against `latest` (`architecture.md`, "Version spread").
+Converging them is an upgrade, and it reaches an instance the same way a new
+palette does: a rebuilt image and a container recreate.
+
+The version lives in **two** places per instance, and they have to agree:
+
+- `apps/<app>/Dockerfile` — the `FROM docker.io/nodered/node-red:<version>`, which is what CI builds
+- `registry.yml` — the `image_tag`, `<app>:<version>-<palette build>`, which is what the deploy pins, what triggers the rebuild, and what `nr.py edit` runs locally
+
+```bash
+python3 scripts/bump-node-red.py --to 5.0.1 --all --dry-run     # what it would do
+python3 scripts/bump-node-red.py --to 5.0.1 --instance wfm-test  # one instance
+```
+
+It rewrites both, resets the palette build to 1, refuses when the two
+disagree already, and regenerates `apps/build-image-pipeline.yml`. Then
+`validate-registry.py`, `git diff`, and a commit to the default branch — CI
+builds each changed app.
+
+**Roll the deploys one instance at a time**, each one `DEPLOY_PALETTE=true`,
+`DRY_RUN=false`. `--all` in the bump is fine, because that is a commit; `--all`
+in the deploy is not, because each one is a container recreate. Order:
+a workbench, then that site's prod, then the next site.
+
+What to watch on the first one:
+
+- **The build is the cheap test.** A palette module that does not support the
+  new Node-RED or its Node.js fails `npm install` in CI, before anything is
+  deployed. That is the signal you want, and it costs nothing.
+- **Node count unchanged** after the recreate, and the palette nodes load
+  rather than showing as unknown.
+- **`Error loading credentials` in the log** would mean the `credentialSecret`
+  did not survive — it is in `settings.js`, which the upgrade does not touch,
+  so this should not happen. Check anyway; it is one line.
+- **Drift afterwards.** A newer runtime can write fields an older one did not
+  the first time someone deploys from the browser. If `nr.py check` reports
+  drift with no edit behind it, capture it once and commit that normalization
+  deliberately, rather than treating it as an unexplained diff.
+- **Read the release notes between the two versions first.** 4.x to 5.x is a
+  major boundary; this repository carries no opinion about what changed there,
+  and the pipeline cannot tell you.
+
+One thing gets *better* immediately: `nr.py edit` derives the editor version
+from `image_tag`, so once an instance is on 5.0.1 its local editor is too. The
+mismatch that pinning exists to prevent — a 5.x editor writing fields into a
+flow a 4.0.x runtime cannot read — stops being possible for that instance.
+
 ## Changing a flow
 
 `scripts/nr.py` wraps everything below. It reads the instance list from `registry.yml`, so it cannot list an instance that does not exist or miss one that does.

@@ -169,8 +169,9 @@ editor, so the commands above work the same inside VS Code.
 | `validate-registry.py` | Checks `registry.yml` against the schema plus the rules a schema cannot express, such as "no floating image tags"; `--changed-since <ref>` also fails when an app's palette moved without its `image_tag`. Runs in CI on every push; run it yourself after editing the registry. |
 | `collect-inventory.py` | Reads every host over SSH and reports what is actually deployed — versions, palettes, `admin_root`, whether `adminAuth` and `credentialSecret` exist, never their values. Run it when the estate changed under you, or to re-derive a fact this repo asserts. |
 | `scaffold-apps.py` | Built the twelve `apps/` directories once out of `samples/`, and now leaves existing apps alone. Only for a new app, or with `--force` when you mean to discard local work. |
+| `bump-node-red.py` | Moves instances to another Node-RED version, rewriting both places it lives — the Dockerfile's `FROM` and the `image_tag` — and resetting the palette build. For a version upgrade; `--dry-run` first, and roll the deploys one instance at a time. |
 | `gen-image-pipeline.py` | Regenerates `apps/build-image-pipeline.yml` from `registry.yml` — one build-and-sign job per app, three running at a time. Run it after adding or removing an instance. |
-| `test_normalize.py`, `test_deploy.py`, `test_nr.py`, `test_promote.py` | The four suites: normalizer properties, the deploy against a stub Admin API, the editor session round-trip, and the promotion rules. All four run in CI; run them before pushing anything under `scripts/`. |
+| `test_normalize.py`, `test_deploy.py`, `test_nr.py`, `test_promote.py`, `test_bump.py` | The five suites: normalizer properties, the deploy against a stub Admin API, the editor session round-trip, the promotion rules, and the version bump. All run in CI; run them before pushing anything under `scripts/`. |
 
 | Not a script | What it is, and when it matters |
 |---|---|
