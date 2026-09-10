@@ -189,6 +189,51 @@ drops credentials that belong to no node when it *saves*, so deploying an empty
 flow is the one action that would discard what B2 just carried over. Keep the
 window short and let the pipeline be the thing that writes.
 
+### If the log says `Error loading credentials`
+
+```
+[warn] Error loading credentials: SyntaxError: Unexpected token '\ufffd', ... is not valid JSON
+```
+
+Binary rubbish where JSON should be means the decryption ran with the wrong
+key: AES-CTR with a key that does not match produces random bytes, and the
+JSON parse is what notices. It is not a corrupt file and not a Node-RED bug.
+
+**Stop the container first.** With the credentials unreadable, Node-RED holds
+none in memory, and the next thing that *saves* writes `flows_cred.json` back
+out — encrypted with the wrong key, over the copy that B2 just made. The
+original still exists in the old instance's `/data` and in the A2 tarball, so
+this is recoverable, but only until it happens twice.
+
+```bash
+docker compose -f /home/administrator/Base_Container/docker-compose.yml stop node-red-prod
+```
+
+Then check the two things that can be wrong, without printing either secret.
+A short SHA-256 prefix is enough to compare keys and reveals nothing:
+
+```bash
+# 1. did the copy survive, or has it already been rewritten?
+sudo md5sum /home/administrator/Base_Container/node-red/data/flows_cred.json \
+            /home/administrator/Base_Container/node-red-prod/data/flows_cred.json
+
+# 2. which key does each side use?
+docker exec node-red-prod node -e 'const s=require("/data/settings.js");const h=require("crypto").createHash("sha256").update(String(s.credentialSecret)).digest("hex");console.log("new settings.js:",h.slice(0,8),"len",String(s.credentialSecret).length)'
+docker exec node-red node -e 'const s=require("/data/settings.js");console.log("old settings.js:",s.credentialSecret?require("crypto").createHash("sha256").update(String(s.credentialSecret)).digest("hex").slice(0,8):"unset")'
+docker exec node-red node -e 'const c=require("/data/.config.runtime.json");console.log("old generated :",c._credentialSecret?require("crypto").createHash("sha256").update(String(c._credentialSecret)).digest("hex").slice(0,8)+" len "+c._credentialSecret.length:"absent")'
+```
+
+The new instance's prefix has to equal whichever of the old two is the real
+one. **`settings.js` wins over the generated key**: if the old instance has an
+active `credentialSecret`, that is what encrypted the file and
+`.config.runtime.json` is a leftover. The generated key only applies when
+`settings.js` leaves it unset — which is the case on this instance, but is
+worth confirming rather than assuming.
+
+If the md5 sums differ, re-copy the file from the old instance before starting
+again (B2), because the one in place may already be the wrongly re-encrypted
+version.
+
 ## Phase C — repoint the registry and look
 
 `registry.yml`, the `wfm-prod` entry:
