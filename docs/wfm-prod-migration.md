@@ -147,15 +147,33 @@ on the first save (`runbook.md`, "A new instance's /data must belong to the
 container user").
 
 **B3. Pin the new container's `credentialSecret` to the old key** in its
-`settings.js`:
+`settings.js`. It arrives with a key of its own, and that key has no
+credentials behind it, so replacing it costs nothing — while getting it wrong
+costs the OPC UA login and the MQTT client certificate.
 
-```js
-credentialSecret: "<the value from A3>",
+Do the edit with a script rather than by hand. The key is 64 hex characters
+that mean nothing to a human eye, so a pasted one is unverifiable, and this way
+it never appears on a screen, in a shell history, or in `ps`:
+
+```bash
+sudo python3 - <<'EOF'
+import hashlib, json, pathlib, re
+old = json.load(open('/home/administrator/Base_Container/node-red/data/.config.runtime.json'))['_credentialSecret']
+p = pathlib.Path('/home/administrator/Base_Container/node-red-prod/data/settings.js')
+s = p.read_text()
+s, n = re.subn(r'(credentialSecret:\s*")[^"]*(")', lambda m: m.group(1) + old + m.group(2), s, count=1)
+assert n == 1, "no active credentialSecret line to replace — is it still commented out?"
+p.write_text(s)
+print("fingerprint now:", hashlib.sha256(old.encode()).hexdigest()[:8])
+EOF
 ```
 
-If it already carries a different value, replace it: it has no credentials of
-its own to lose, and this key is what `flows_cred.json` is encrypted with. A
-mismatch does not error — the credentials simply come back empty.
+The fingerprint it prints has to match the old instance's generated key — the
+same eight characters the diagnosis below computes. That is the check, and it
+gives away nothing.
+
+A mismatch does not error at startup. It logs one warning and carries on with
+no credentials at all.
 
 **B4. The image is already the pinned tag** — `wfm-prod:4.0.9-1`, which is the
 `image_tag` `registry.yml` holds. Nothing to change, and no Harbor login
