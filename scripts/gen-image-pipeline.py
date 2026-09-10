@@ -39,8 +39,10 @@ HEADER = """\
 # One image per app. The tag comes from registry.yml, so the tag that CI builds
 # and the tag that the deploy pins are the same string by construction.
 #
-# A job only runs when its own app changed. Twelve images rebuilt because one
-# palette moved would be twelve chances for an unrelated failure.
+# A job only runs when its own app's palette or Dockerfile changed. Twelve
+# images rebuilt because one palette moved would be twelve chances for an
+# unrelated failure — and a flow commit rebuilding the image would push the
+# same pinned tag with different content.
 #
 # resource_group holds one job per group, so the three groups below cap the
 # builds at three at a time. The rest queue as "waiting for resource".
@@ -65,8 +67,12 @@ def blocks(instances: list[dict]) -> tuple[list, dict]:
              "inputs": {"stage": "Sign", "job_name": f"sign:cosign:{app}",
                         "image_name": image_name}},
         ]
+        # package.json and the Dockerfile are the whole input to this image.
+        # apps/<app>/** would include flows.json, and then every flow commit
+        # would rebuild and push the SAME pinned tag — a tag whose content
+        # changes is not a pinned tag (decision 5).
         rules = [{"if": '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH',
-                  "changes": [f"apps/{app}/**/*"]}]
+                  "changes": [f"apps/{app}/package.json", f"apps/{app}/Dockerfile"]}]
         jobs[f"build:buildah:{app}"] = {
             # Only the build is throttled. Signing is cheap, and holding it in a
             # group would make it wait behind an unrelated build.

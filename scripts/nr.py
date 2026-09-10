@@ -168,8 +168,14 @@ def session_digest(app: str) -> str | None:
     bytes, but reporting it as "copied back" points the reader at a diff that
     does not exist while the actual failure scrolls past above.
     """
-    f = SESSION / app / "flows.json"
-    return hashlib.sha256(f.read_bytes()).hexdigest() if f.exists() else None
+    h = hashlib.sha256()
+    seen = False
+    for name in ("flows.json", "package.json"):
+        f = SESSION / app / name
+        if f.exists():
+            h.update(f.read_bytes())
+            seen = True
+    return h.hexdigest() if seen else None
 
 
 def merge_session(app: str, was: dict[str, bool]) -> list[str]:
@@ -211,6 +217,56 @@ def merge_session(app: str, was: dict[str, bool]) -> list[str]:
     sys.path.insert(0, str(ROOT / "scripts"))
     from normalize import normalize, render
     (ROOT / "apps" / app / "flows.json").write_text(render(normalize(flows)), encoding="utf-8")
+    return added
+
+
+def installed_version(app: str, module: str) -> str | None:
+    """The version npm actually put in the session, read off the module itself."""
+    manifest = SESSION / app / "node_modules" / module / "package.json"
+    if not manifest.exists():
+        return None
+    try:
+        return json.loads(manifest.read_text(encoding="utf-8")).get("version")
+    except json.JSONDecodeError:
+        return None
+
+
+def merge_palette(app: str) -> list[str]:
+    """Carry a module installed through "Manage palette" into the app's palette.
+
+    That install runs npm in the session's /data, so the module is real and
+    resolved — and invisible to everything else: the session directory is
+    gitignored and only flows.json was ever copied out of it. Writing it into
+    apps/<app>/package.json is what ships it, and the version it resolved beats
+    one typed from memory.
+
+    Additive on purpose. The baked palette lives in the image, not under /data,
+    so a name missing from the session means "already in the image", never
+    "removed" — a two-way sync would empty the manifest on the first session.
+    """
+    session_pkg = SESSION / app / "package.json"
+    app_pkg = ROOT / "apps" / app / "package.json"
+    if not (session_pkg.exists() and app_pkg.exists()):
+        return []
+    try:
+        installed = json.loads(session_pkg.read_text(encoding="utf-8")).get("dependencies") or {}
+    except json.JSONDecodeError:
+        return []
+
+    manifest = json.loads(app_pkg.read_text(encoding="utf-8"))
+    deps = dict(manifest.get("dependencies") or {})
+    added = []
+    for module, declared in sorted(installed.items()):
+        if module in deps:
+            continue
+        # A range would make the built image drift from the one tested here.
+        exact = installed_version(app, module) or declared.lstrip("^~>=< ")
+        deps[module] = exact
+        added.append(f"{module}@{exact}")
+
+    if added:
+        manifest["dependencies"] = dict(sorted(deps.items()))
+        app_pkg.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return added
 
 
@@ -329,6 +385,13 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
                 print(f"\ncopied back into apps/{inst['app']}/flows.json"
                       f"{' — new tab(s) kept as you left them: ' + ', '.join(added) if added else ''}")
                 print(f"  git diff apps/{inst['app']}/flows.json")
+                palette = merge_palette(inst["app"])
+                if palette:
+                    print(f"\npalette: {', '.join(palette)} written into "
+                          f"apps/{inst['app']}/package.json, pinned to what you installed.\n"
+                          f"  A flow deploy installs nothing, so this needs the other transport:\n"
+                          f"  raise the suffix of image_tag in registry.yml, let CI build it, then\n"
+                          f"  deploy with DEPLOY_PALETTE=true. docs/runbook.md, 'Palette change'.")
 
     env = build_env(inst, cfg, need_password=True)
     script = {"check": "drift-check.py", "capture": "capture.py", "deploy": "deploy.py"}[action]

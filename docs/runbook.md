@@ -220,23 +220,25 @@ does not have deploys "successfully" and then logs `Unrecognised node type` and
 does not run. The palette is the second transport, and it restarts the
 container.
 
-**Installing a module through "Manage palette" in the local editor changes
-nothing that ships.** It writes into the session's `/data`, which is
-`.editor-session/<app>/` — gitignored, and `nr.py` copies only `flows.json`
-back out of it. Useful for trying the nodes out; invisible to everything else.
+**Installing a module through "Manage palette" in the local editor is carried
+into the app for you.** That install runs npm in the session's `/data`, which is
+gitignored — so on exit `nr.py` writes any module the app does not already pin
+into `apps/<app>/package.json`, at the version npm actually resolved, and says
+so. Review it with `git diff`; the rest of the sequence is still yours.
 
-That local install is still worth one thing: it resolved a concrete version.
-Read it out of the session and put *that* into the app, so what CI builds is
-what you tried:
+The merge is **additive**. The baked palette lives in the image, not under
+`/data`, so a module missing from the session means "already in the image",
+never "removed" — a two-way sync would empty the manifest on the first session.
+Removing a module is therefore a manual edit of `apps/<app>/package.json`.
 
-```bash
-python3 -c "import json;print(json.load(open('.editor-session/<app>/package.json'))['dependencies'])"
-```
-
-1. Add the dependency to `apps/<app>/package.json` with an exact version.
-2. Commit — GitLab CI builds and signs a new image. The tag is
-   `<node-red-version>-<palette build>`, so the suffix goes up:
-   `wfm-test:4.0.9-1` becomes `wfm-test:4.0.9-2`.
+1. Have the dependency in `apps/<app>/package.json` with an exact version —
+   from the editor session, or written by hand.
+2. Commit to the default branch — GitLab CI builds and signs a new image. It
+   builds **only** when that app's `package.json` or `Dockerfile` changed, and
+   only on the default branch: a flow commit must not rebuild, because it would
+   push the same pinned tag with different content. The tag is
+   `<node-red-version>-<palette build>`, so raise the suffix in `registry.yml`
+   in the same commit: `wfm-test:4.0.9-1` becomes `wfm-test:4.0.9-2`.
 3. Update `image_tag` in `registry.yml` to that exact tag. `latest` fails
    validation (decision 5).
 4. Jenkins with `DEPLOY_PALETTE=true`, `DRY_RUN=false`. It deploys the flow

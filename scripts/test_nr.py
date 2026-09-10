@@ -112,6 +112,47 @@ try:
     except SystemExit as exc:
         check("an empty session is refused, not copied back", "no tabs" in str(exc))
     check("and the app file is untouched by the refusal", LIVE.read_bytes() == before)
+
+    # --- palette: what "Manage palette" installs has to reach the app ------
+    # It runs npm in the session's /data, which is gitignored, so without this
+    # the module is real locally and absent everywhere that matters.
+    APP_PKG = ROOT / "apps" / APP / "package.json"
+    pkg_before = APP_PKG.read_bytes()
+    session = nr.SESSION / APP
+    try:
+        (session / "package.json").write_text(json.dumps(
+            {"dependencies": {"node-red-contrib-fake": "^1.2.3",
+                              "node-red-contrib-opcua": "^0.9.9"}}), encoding="utf-8")
+        mod = session / "node_modules" / "node-red-contrib-fake"
+        mod.mkdir(parents=True, exist_ok=True)
+        (mod / "package.json").write_text(json.dumps({"version": "1.2.4"}), encoding="utf-8")
+
+        before_deps = json.loads(pkg_before)["dependencies"]
+        added = nr.merge_palette(APP)
+        deps = json.loads(APP_PKG.read_text(encoding="utf-8"))["dependencies"]
+
+        check("a module installed in the editor lands in the app's palette",
+              "node-red-contrib-fake" in deps, str(deps))
+        check("pinned to the version npm actually installed, not the range",
+              deps.get("node-red-contrib-fake") == "1.2.4",
+              str(deps.get("node-red-contrib-fake")))
+        check("and it is reported", added == ["node-red-contrib-fake@1.2.4"], str(added))
+        check("a module the app already pins is left alone",
+              deps.get("node-red-contrib-opcua") == before_deps.get("node-red-contrib-opcua"),
+              str(deps.get("node-red-contrib-opcua")))
+        check("nothing is dropped", set(before_deps) <= set(deps))
+
+        again = nr.merge_palette(APP)
+        check("a second session adds nothing twice", again == [], str(again))
+
+        # The baked palette is in the image, not under /data, so an empty
+        # session list must never be read as "the app has no palette".
+        (session / "package.json").write_text(json.dumps({"dependencies": {}}), encoding="utf-8")
+        nr.merge_palette(APP)
+        check("an empty session leaves the palette intact",
+              json.loads(APP_PKG.read_text(encoding="utf-8"))["dependencies"] == deps)
+    finally:
+        APP_PKG.write_bytes(pkg_before)
 finally:
     LIVE.write_bytes(original_bytes)
     shutil.rmtree(nr.SESSION, ignore_errors=True)

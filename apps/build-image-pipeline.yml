@@ -2,8 +2,10 @@
 # One image per app. The tag comes from registry.yml, so the tag that CI builds
 # and the tag that the deploy pins are the same string by construction.
 #
-# A job only runs when its own app changed. Twelve images rebuilt because one
-# palette moved would be twelve chances for an unrelated failure.
+# A job only runs when its own app's palette or Dockerfile changed. Twelve
+# images rebuilt because one palette moved would be twelve chances for an
+# unrelated failure — and a flow commit rebuilding the image would push the
+# same pinned tag with different content.
 #
 # resource_group holds one job per group, so the three groups below cap the
 # builds at three at a time. The rest queue as "waiting for resource".
@@ -171,7 +173,8 @@ build:buildah:cho-prod:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/cho-prod/**/*
+    - apps/cho-prod/package.json
+    - apps/cho-prod/Dockerfile
 sign:cosign:cho-prod:
   variables:
     IMAGE_TAG: 4.0.5-1
@@ -180,13 +183,15 @@ sign:cosign:cho-prod:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/cho-prod/**/*
+    - apps/cho-prod/package.json
+    - apps/cho-prod/Dockerfile
 build:buildah:cho-test:
   resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/cho-test/**/*
+    - apps/cho-test/package.json
+    - apps/cho-test/Dockerfile
 sign:cosign:cho-test:
   variables:
     IMAGE_TAG: 4.0.5-1
@@ -195,13 +200,15 @@ sign:cosign:cho-test:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/cho-test/**/*
+    - apps/cho-test/package.json
+    - apps/cho-test/Dockerfile
 build:buildah:gor-prod:
   resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/gor-prod/**/*
+    - apps/gor-prod/package.json
+    - apps/gor-prod/Dockerfile
 sign:cosign:gor-prod:
   variables:
     IMAGE_TAG: 4.0.5-1
@@ -210,13 +217,15 @@ sign:cosign:gor-prod:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/gor-prod/**/*
+    - apps/gor-prod/package.json
+    - apps/gor-prod/Dockerfile
 build:buildah:gor-test:
   resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/gor-test/**/*
+    - apps/gor-test/package.json
+    - apps/gor-test/Dockerfile
 sign:cosign:gor-test:
   variables:
     IMAGE_TAG: 4.0.5-1
@@ -225,13 +234,15 @@ sign:cosign:gor-test:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/gor-test/**/*
+    - apps/gor-test/package.json
+    - apps/gor-test/Dockerfile
 build:buildah:jan-prod:
   resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/jan-prod/**/*
+    - apps/jan-prod/package.json
+    - apps/jan-prod/Dockerfile
 sign:cosign:jan-prod:
   variables:
     IMAGE_TAG: 4.0.9-1
@@ -240,13 +251,15 @@ sign:cosign:jan-prod:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/jan-prod/**/*
+    - apps/jan-prod/package.json
+    - apps/jan-prod/Dockerfile
 build:buildah:jan-test:
   resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/jan-test/**/*
+    - apps/jan-test/package.json
+    - apps/jan-test/Dockerfile
 sign:cosign:jan-test:
   variables:
     IMAGE_TAG: 4.0.9-1
@@ -255,13 +268,15 @@ sign:cosign:jan-test:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/jan-test/**/*
+    - apps/jan-test/package.json
+    - apps/jan-test/Dockerfile
 build:buildah:srem-prod:
   resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/srem-prod/**/*
+    - apps/srem-prod/package.json
+    - apps/srem-prod/Dockerfile
 sign:cosign:srem-prod:
   variables:
     IMAGE_TAG: 4.0.9-1
@@ -270,13 +285,15 @@ sign:cosign:srem-prod:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/srem-prod/**/*
+    - apps/srem-prod/package.json
+    - apps/srem-prod/Dockerfile
 build:buildah:srem-test:
   resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/srem-test/**/*
+    - apps/srem-test/package.json
+    - apps/srem-test/Dockerfile
 sign:cosign:srem-test:
   variables:
     IMAGE_TAG: 4.0.9-1
@@ -285,13 +302,15 @@ sign:cosign:srem-test:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/srem-test/**/*
+    - apps/srem-test/package.json
+    - apps/srem-test/Dockerfile
 build:buildah:wag-prod:
   resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/wag-prod/**/*
+    - apps/wag-prod/package.json
+    - apps/wag-prod/Dockerfile
 sign:cosign:wag-prod:
   variables:
     IMAGE_TAG: 5.0.1-1
@@ -300,13 +319,15 @@ sign:cosign:wag-prod:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/wag-prod/**/*
+    - apps/wag-prod/package.json
+    - apps/wag-prod/Dockerfile
 build:buildah:wag-test:
   resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/wag-test/**/*
+    - apps/wag-test/package.json
+    - apps/wag-test/Dockerfile
 sign:cosign:wag-test:
   variables:
     IMAGE_TAG: 5.0.1-1
@@ -315,13 +336,15 @@ sign:cosign:wag-test:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/wag-test/**/*
+    - apps/wag-test/package.json
+    - apps/wag-test/Dockerfile
 build:buildah:wfm-prod:
   resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/wfm-prod/**/*
+    - apps/wfm-prod/package.json
+    - apps/wfm-prod/Dockerfile
 sign:cosign:wfm-prod:
   variables:
     IMAGE_TAG: 4.0.9-1
@@ -330,13 +353,15 @@ sign:cosign:wfm-prod:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/wfm-prod/**/*
+    - apps/wfm-prod/package.json
+    - apps/wfm-prod/Dockerfile
 build:buildah:wfm-test:
   resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/wfm-test/**/*
+    - apps/wfm-test/package.json
+    - apps/wfm-test/Dockerfile
 sign:cosign:wfm-test:
   variables:
     IMAGE_TAG: 4.0.9-1
@@ -345,4 +370,5 @@ sign:cosign:wfm-test:
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
-    - apps/wfm-test/**/*
+    - apps/wfm-test/package.json
+    - apps/wfm-test/Dockerfile

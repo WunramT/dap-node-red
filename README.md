@@ -154,7 +154,7 @@ editor, so the commands above work the same inside VS Code.
 | `nr.py` | The one entry point: asks which instance and which action, so the instance list lives only in `registry.yml`. Start here. |
 | `nr.py status` | Table of every instance and whether it still matches Git — the morning check, and what tells you if someone edited in a browser. |
 | `nr.py check <inst>` | The same question for one instance, with the diff. Run it before every promotion and before every deploy. |
-| `nr.py edit <inst>` | Starts a local Node-RED on a copy of that app with **every tab disabled**, so you enable the one you work on. The way to change a flow without touching a running instance; add `--baked` when the flow uses palette nodes, `--isolated` when it must not reach anything. |
+| `nr.py edit <inst>` | Starts a local Node-RED on a copy of that app with **every tab disabled**, so you enable the one you work on, and on exit carries the flow — and any module you installed through Manage palette — back into `apps/`. The way to change a flow without touching a running instance; add `--baked` when the flow uses palette nodes, `--isolated` when it must not reach anything. |
 | `nr.py capture <inst>` | Reads the running flow back into `apps/` so it can be committed. The recovery from a browser edit, and the only path from an instance back into Git. |
 | `nr.py deploy <inst>` | Dry run only, on purpose — shows what a deploy would change. A real deploy is a reviewed commit that Jenkins carries out. |
 | `nr.py promote <a> <b> <tab>` | Moves one tab and its dependencies between two apps: `--copy` prod → workbench (arrives disabled), `--move` workbench → prod (arrives enabled). The two change loops are built out of this. |
