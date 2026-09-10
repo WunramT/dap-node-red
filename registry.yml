@@ -189,10 +189,10 @@ instances:
   # (decision 13); until then deploy.py has nothing to authenticate against.
   - name: wfm-prod
     host: wfm-svr-lin01
-    compose_service: node-red
+    compose_service: node-red-prod
     compose_file: /home/administrator/Base_Container/docker-compose.yml
     app: wfm-prod
-    admin_root: ""
+    admin_root: "/node-red-prod"
     auth_credential_id: nodered-wfm-prod-auth
     credential_secret_id: nodered-wfm-prod-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
