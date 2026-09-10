@@ -92,13 +92,29 @@ docker inspect node-red --format 'compose={{index .Config.Labels "com.docker.com
 docker exec node-red-prod grep -n 'credentialSecret' /data/settings.js
 ```
 
-- its **image** says whether the palette is already the pinned
-  `dap-node-red/wfm-prod:4.0.9-1` or still a floating tag,
-- its **compose file** goes into `registry.yml` as `compose_file`, and is what
-  a palette deploy will call,
-- its **data directory** is where phase B copies `flows_cred.json`,
-- the old container's **restart policy** is the trap in phase D: `always`
-  brings it back after a reboot, publishing a second time.
+Measured on 2026-09-10:
+
+| | |
+|---|---|
+| image | `harbor.aks-infra.polipol-service.de/dap-node-red/wfm-prod:4.0.9-1` — **already the pinned tag**, so phase B has no image work |
+| compose file | `/home/administrator/Base_Container/docker-compose.yml` — the same file as the old container and as `node-red-test`, so `compose_file` in `registry.yml` does not change |
+| data directory | `/home/administrator/Base_Container/node-red-prod/data` |
+| `credentialSecret` | set explicitly in its `settings.js`, its own value. Phase B replaces it with the old instance's key |
+| restart policy | `always` — **on both containers**, which is the phase D trap |
+
+Two more things that same `docker ps` showed, and neither belongs on this host:
+
+- **A stray container** running `dap-node-red/wfm-test:4.0.9-1` under a
+  generated name, up 20 hours, from a bare `docker run` during the image test.
+  It has no bind mount, so its `/data` is a fresh volume and its flow is empty
+  — harmless today, and a Node-RED runtime nobody tracks, on a host that is
+  being brought under exactly the opposite regime. Remove it:
+  `docker rm -f <name>`.
+- **`restart: always` on the old `node-red`.** `docker compose stop` survives a
+  daemon restart, because an explicit stop is recorded — but any
+  `docker compose up -d` on this file, for NATS or for the sdcs stack, starts
+  it again. And that file holds all of them. So the service has to leave the
+  compose file, not just be stopped.
 
 ## Phase B — carry the secrets across, then pin the image
 
@@ -108,15 +124,15 @@ flow keeps running while you work.
 **B1. Stop the new container** so nothing is holding its files:
 
 ```bash
-docker compose -f <compose_file from A4> stop node-red-prod
+docker compose -f /home/administrator/Base_Container/docker-compose.yml stop node-red-prod
 ```
 
 **B2. Copy the credential file into the new data directory:**
 
 ```bash
 sudo cp /home/administrator/Base_Container/node-red/data/flows_cred.json \
-        <new data dir from A4>/flows_cred.json
-sudo chown 1004:1004 <new data dir>/flows_cred.json
+        /home/administrator/Base_Container/node-red-prod/data/flows_cred.json
+sudo chown 1004:1004 /home/administrator/Base_Container/node-red-prod/data/flows_cred.json
 ```
 
 The ownership is not optional — a file the container user cannot read fails the
@@ -135,18 +151,14 @@ If it already carries a different value, replace it: it has no credentials of
 its own to lose, and this key is what `flows_cred.json` is encrypted with. A
 mismatch does not error — the credentials simply come back empty.
 
-**B4. Pin the image** to the exact tag, if A4 showed something else:
-
-```yaml
-    image: harbor.aks-infra.polipol-service.de/dap-node-red/wfm-prod:4.0.9-1
-```
+**B4. The image is already the pinned tag** — `wfm-prod:4.0.9-1`, which is the
+`image_tag` `registry.yml` holds. Nothing to change, and no Harbor login
+needed.
 
 **B5. Start it and read the log:**
 
 ```bash
-docker login harbor.aks-infra.polipol-service.de
-docker compose -f <compose_file> pull node-red-prod
-docker compose -f <compose_file> up -d node-red-prod
+docker compose -f /home/administrator/Base_Container/docker-compose.yml up -d node-red-prod
 docker logs node-red-prod --tail 40      # no "Failed to decrypt credentials"
 ```
 
@@ -162,7 +174,7 @@ ever rewrites an id.
 ```yaml
     compose_service: node-red-prod          # was: node-red
     admin_root: "/node-red-prod"            # the new runtime's httpAdminRoot
-    compose_file: <from A4>
+    # compose_file and image_tag already match the new container
 ```
 
 Both values move together. `admin_root` is what the runtime serves, and the new
@@ -287,7 +299,7 @@ a delete:
 
 ```bash
 docker compose -f /home/administrator/Base_Container/docker-compose.yml up -d node-red
-docker compose -f <compose_file> stop node-red-prod
+docker compose -f /home/administrator/Base_Container/docker-compose.yml stop node-red-prod
 # registry.yml back to compose_service: node-red, admin_root: ""
 ```
 
