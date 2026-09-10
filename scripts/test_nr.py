@@ -97,6 +97,19 @@ check("with no address it says so and gives the command",
       "did not report" in blind and "podman port node-red-editor" in blind, blind)
 check("and does not point at a line that is not there", "Ports panel" not in blind, blind)
 
+named = nr.editor_urls("10.89.7.2", "docker", in_vm=True, by_name=True)
+check("on a shared network the name comes first",
+      named.index("node-red-editor:1880") < named.index("10.89.7.2"), named)
+check("and the forward instruction names it, not an address",
+      "Forward a Port, node-red-editor:1880" in named, named)
+
+# The override joins an existing network rather than creating one, which is
+# what makes the name resolvable from here.
+nr.stage_network(APP, "devcontainer_default")
+body = (nr.SESSION / APP / "network.yml").read_text(encoding="utf-8")
+check("the network override marks it external", "external: true" in body, body)
+check("and names the network to join", "devcontainer_default:" in body, body)
+
 local = nr.editor_urls("172.20.0.2", "docker", in_vm=False)
 check("with a local daemon localhost is the answer",
       "http://localhost:1880" in local and "only if" not in local, local)
