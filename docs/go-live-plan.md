@@ -47,6 +47,7 @@ For every instance reported `clean` in phase 0 (8 of the 10 checked), plus `wag-
 
 - [ ] Run the backup gate (as in phase 1).
 - [ ] Pin `credentialSecret`.
+- [ ] `wfm-prod` has its own sequence, written out step by step in [`wfm-prod-migration.md`](wfm-prod-migration.md) — it is the one instance that predates the pipeline on a host that now also carries a workbench, so it is the pattern for the other eleven.
 - [ ] For `wfm-prod` additionally: turn on `adminAuth` (currently open, `runbook.md` step 2) — it is the one instance with a real security hole, and should be pulled forward rather than left until last.
 - [ ] `wfm-test` is new and therefore the actual first candidate: empty instance, real deploy from Git, no production risk. Only then `wfm-prod`.
 - [ ] For `cho-prod` additionally: `level: "info"` instead of `"trace"` (decision 13).
