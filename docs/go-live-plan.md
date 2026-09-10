@@ -14,7 +14,7 @@ Read-only. The goal: know which of the 16 instances currently match Git, before 
 
 **Done on 2026-09-08** (fleet dry run via Jenkins): 8 clean (`cho-prod`, `cho-test`, `gor-prod`, `gor-test`, `jan-prod`, `jan-test`, `srem-prod`, `wag-prod`), 2 drifted (`srem-test` 1008 lines, `wag-test` 37 lines), `wfm-prod` never reached (the Jenkins credential was missing).
 
-- [ ] Run `drift-check.py --all --json inventory/drift.json` **through Jenkins**, not from a workstation — `srem-prod`, `srem-test` and `slu-prod` publish no port and are only reachable from their host (`runbook.md`, "Reaching an instance from a workstation"). A new, small Jenkins job (like the deploy job, but without the write path) is the right place for it.
+- [ ] Run `drift-check.py --all --json inventory/drift.json`. This used to need Jenkins, because `srem-prod`, `srem-test` and `slu-prod` publish no port — since the proxy routes every host by path, all 14 answer from a workstation, and `nr.local.example.json` carries the URLs (`runbook.md`, "Reaching an instance from a workstation"). A scheduled Jenkins job is still what phase 3 needs; the one-off sweep no longer waits for it.
 - [ ] Record the result per instance: `clean` / `drifted` / `unreachable` / `no-app`.
 - [ ] For every `drifted` instance: review the diff (`--show-diff`). Decide per instance — commit it or discard it deliberately (`runbook.md`, "On 409"). Do **not** touch these instances through automation before that decision is made.
 - [ ] For every `unreachable` instance: find the cause (missing credential? host not reachable? wrong `admin_root`?).
