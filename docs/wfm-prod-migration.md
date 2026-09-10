@@ -105,6 +105,55 @@ adminAuth: {
 A *new* `credentialSecret` value makes the stored OPC UA login unreadable. Pin
 the existing one.
 
+**B2a. Decide the proxy path, and change it in the same edit.** nginx on this
+host has
+
+```nginx
+location /node-red-prod {
+    set $upstream http://node-red-prod:1880;
+    #rewrite ^/node-red-prod/(.*)$ /$1 break;
+```
+
+Two things are wrong with that for this instance. The upstream name is
+`node-red-prod`, and the container here is called `node-red` — the pair
+`node-red-prod` / `node-red-test` is the naming on the other hosts, and this
+block was written for them. And with the rewrite commented out, nginx passes
+`/node-red-prod/...` through unchanged, to a runtime whose `httpAdminRoot` is
+commented out and which therefore serves at `/`. Whatever answers on that path
+today is not this container: it answered `401`, and this container answers
+`200` without a login.
+
+**So resolve the name before anything else** — a wrong upstream that reaches
+*some* Node-RED is worse than one that reaches none:
+
+```bash
+docker exec <nginx-container> getent hosts node-red-prod node-red node-red-test
+```
+
+Docker's embedded resolver forwards what it cannot answer to the host's DNS,
+and this host carries `dns_search: rah.polipol.intra, wag.polipol.intra`. A
+name that is not a local container can therefore resolve to a Node-RED on a
+different server — one that does serve `/node-red-prod` and does have
+`adminAuth`, which is exactly what a `401` looks like.
+
+Then pick one of two end states, and move `settings.js` and `registry.yml`
+together:
+
+| | `settings.js` | nginx | `admin_root` |
+|---|---|---|---|
+| **A: serve the path** (recommended) | uncomment `httpAdminRoot: '/node-red-prod'` | upstream `node-red`, rewrite stays off | `/node-red-prod` |
+| B: strip it at the proxy | leave the root at `/` | upstream `node-red`, uncomment the rewrite | `""` |
+
+A is what the other eight instances already do, what `wfm-test` does, and what
+Node-RED itself recommends: the editor builds its asset and websocket URLs from
+`httpAdminRoot`, so a prefix stripped by the proxy leaves the browser asking
+for `/` and the editor half-loads. B works for the API and is the fragile one.
+
+Either way the two values are one change: `admin_root` is what the runtime
+serves, so flipping `settings.js` without `registry.yml` — or the reverse —
+gives every Jenkins run a `404`. `registry.yml` currently holds `""`, which is
+what the runtime serves *today*.
+
 **B3. Switch the service to the exact tag** in
 `/home/administrator/Base_Container/docker-compose.yml`, replacing the floating
 `nodered/node-red:latest` on the `node-red` service only:
