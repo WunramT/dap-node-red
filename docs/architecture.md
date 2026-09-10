@@ -11,7 +11,7 @@ Measured, not assumed — `scripts/collect-inventory.py` visited every host:
 | | |
 |---|---|
 | 6 servers with a dev/prod pair | `cho`, `gor`, `jan`, `slu`, `srem`, `wag` — 12 instances |
-| 1 server whose single instance became a pair | `wfm-svr-lin01` — `node-red` (now `wfm-prod`, **no `adminAuth`**) plus a new `node-red-test` |
+| 1 server mid-cutover | `wfm-svr-lin01` carries three runtimes: the old `node-red` (**no `adminAuth`**, holds the live 19-node flow), an empty `node-red-prod` waiting for it, and the workbench `node-red-test`. [`wfm-prod-migration.md`](wfm-prod-migration.md) is the cutover |
 | 2 servers under FlowFuse | `pod-svr-lin01`, `dpn-svr-iot` — migration targets, see below |
 | 1 server with no Node-RED at all | `foi-svr-lnx01` — NATS, iot-bridges, dashboards |
 
