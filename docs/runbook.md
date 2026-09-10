@@ -131,11 +131,13 @@ The two FlowFuse servers need no credential at all yet, and neither does `pod-sv
 ## Flow deploy
 
 ```
-python3 scripts/deploy.py --instance <name> --dry-run   # prints the normalized diff, exits 0
-python3 scripts/deploy.py --instance <name>
+python3 scripts/deploy.py --instance <name> --dry-run              # prints the diff and the rev
+python3 scripts/deploy.py --instance <name> --expect-rev <rev>     # writes only if it still holds
 ```
 
 Sequence and the `rev` handshake: [`architecture.md`](architecture.md).
+
+**Take the rev from the dry run into the deploy.** It is what makes the conflict abort reachable: a deploy without it reads the current rev and posts against it moments later, so a browser edit made before the run is inside that rev and gets flattened. With it, anything that changed the instance between the review and the write stops the write. In Jenkins the parameter is `EXPECT_REV`, and it belongs to one instance — a fleet run cannot pin it.
 
 ### Reaching an instance from a workstation
 

@@ -84,6 +84,8 @@ SSH is a transport for the script, never a path for writing flow files. The `rev
 3. `POST <admin_root>/flows` with header `Node-RED-Deployment-Type: flows` and the captured `rev`.
 4. `409` → abort. The running flow diverged from Git; that must surface as a red pipeline, never be flattened.
 
+Step 2 and step 3 happen seconds apart in the same run, so the rev from step 2 already contains any browser edit made before it — the POST would succeed and flatten that edit. The abort in step 4 is therefore only reachable when the rev posted is the one a **human reviewed**: `deploy.py --expect-rev <rev>`, filled from the dry run's output (Jenkins parameter `EXPECT_REV`). Without it a deploy overwrites whatever it finds, and says so on stderr. One rev belongs to one instance, so it cannot be combined with `--all`.
+
 There is no render step between the `GET` and the `POST`: no app is shared, so no flow has to vary per instance (decision 14). The committed flow is what gets posted.
 
 `--dry-run` prints the normalized diff and exits 0. `--instance <name>` targets one instance, `--all` every instance with an app. Standard library only — the site hosts are not guaranteed to have pip.

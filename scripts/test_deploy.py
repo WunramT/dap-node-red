@@ -188,6 +188,34 @@ r = run("--instance", "does-not-exist", "--dry-run")
 check("an unknown instance fails clearly",
       r.returncode != 0 and "no instance named" in r.stderr)
 
+# --- the rev handshake only bites when the rev is the reviewed one ----------
+# Without --expect-rev the run reads the current rev and posts against it, so an
+# edit made before the run is inside that rev and gets flattened. This pins both
+# halves, because the second is the reason the flag exists.
+STATE.update(rev="rev-9", stale=False, posted=None,
+             flows=[{"id": "hand-edit", "type": "inject", "z": "t", "name": "edited in browser"}])
+r = run("--instance", "wag-prod")
+check("without --expect-rev a browser edit is overwritten, and the run says so",
+      r.returncode == 0 and STATE["posted"] is not None
+      and "overwrites whatever the instance holds" in r.stderr, r.stdout[:200] + r.stderr[:200])
+
+STATE.update(rev="rev-9", posted=None,
+             flows=[{"id": "hand-edit", "type": "inject", "z": "t", "name": "edited in browser"}])
+r = run("--instance", "wag-prod", "--expect-rev", "rev-7")
+check("a rev that has moved on stops the deploy", r.returncode == 2, f"rc={r.returncode}")
+check("and nothing is written", STATE["posted"] is None)
+check("the message names both revs", "rev-9" in r.stderr and "rev-7" in r.stderr, r.stderr[:200])
+check("and points at the recovery", "runbook.md" in r.stderr)
+
+STATE.update(rev="rev-9", posted=None,
+             flows=[{"id": "hand-edit", "type": "inject", "z": "t", "name": "edited in browser"}])
+r = run("--instance", "wag-prod", "--expect-rev", "rev-9")
+check("the reviewed rev deploys", r.returncode == 0 and STATE["posted"] is not None,
+      r.stdout[:200] + r.stderr[:200])
+
+r = run("--all", "--expect-rev", "rev-9")
+check("--expect-rev with --all is refused", r.returncode != 0 and "cannot go with --all" in r.stderr)
+
 # --- drift-check ------------------------------------------------------------
 DRIFT = ROOT / "scripts" / "drift-check.py"
 

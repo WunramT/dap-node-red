@@ -26,6 +26,18 @@ A `409` from POST aborts, always. It means the running flow diverged from Git �
 someone edited in the browser — and overwriting that edit destroys work and
 teaches everyone that the pipeline eats what they do. There is no --force, and
 adding one would undo decision 3. Recovery is in docs/runbook.md.
+
+    --expect-rev <rev>
+
+is what makes that abort reachable. Without it a real deploy reads the current
+rev and posts against it moments later, so an edit made before the run is
+already in that rev: the POST succeeds and flattens the edit. The server can
+only refuse a write it can see is against a state that has moved on, so the rev
+has to be the one a human reviewed, not the one this run just read.
+
+So: read the rev in the dry run, and pass it to the deploy. Anything that
+changed the instance in between — a browser deploy, another pipeline run —
+makes this stop before it writes.
 """
 
 from __future__ import annotations
@@ -232,7 +244,7 @@ def get_token(base: str, admin_root: str, user: str, password: str) -> str:
 
 # --------------------------------------------------------------------------
 
-def deploy(inst: dict, dry_run: bool) -> int:
+def deploy(inst: dict, dry_run: bool, expect_rev: str | None = None) -> int:
     name = inst["name"]
     app = inst.get("app")
     if not app:
@@ -263,6 +275,14 @@ def deploy(inst: dict, dry_run: bool) -> int:
     if rev is None:
         raise SystemExit(f"{name}: GET /flows returned no rev (status {status}) — "
                          "the instance may predate the v2 Admin API")
+
+    if expect_rev and rev != expect_rev:
+        print(f"\n{name}: CONFLICT. The instance is at rev {rev}, and the deploy was "
+              f"approved for {expect_rev}.\n"
+              f"Something changed it in between — a browser deploy, or another run.\n"
+              f"Whatever it was is not in Git, and this would flatten it.\n"
+              f"Capture it first: docs/runbook.md, 'On 409'.", file=sys.stderr)
+        return 2
 
     before = render(normalize(running))
     after = render(normalize(desired))
@@ -309,7 +329,13 @@ def main() -> int:
     target.add_argument("--all", action="store_true", help="every instance with an app")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the diff and exit 0, changing nothing")
+    ap.add_argument("--expect-rev",
+                    help="the rev a dry run reported. Refuse if the instance has moved "
+                         "since — without this a deploy overwrites whatever it finds")
     args = ap.parse_args()
+
+    if args.expect_rev and args.all:
+        raise SystemExit("--expect-rev is one instance's rev, so it cannot go with --all")
 
     instances = load_instances()
     if args.instance:
@@ -319,9 +345,13 @@ def main() -> int:
     else:
         chosen = [i for i in instances if i.get("app")]
 
+    if not (args.dry_run or args.expect_rev):
+        print("note: no --expect-rev, so this deploy overwrites whatever the instance "
+              "holds, including a browser edit made before it started.", file=sys.stderr)
+
     worst = 0
     for inst in chosen:
-        worst = max(worst, deploy(inst, args.dry_run))
+        worst = max(worst, deploy(inst, args.dry_run, args.expect_rev))
     return worst
 
 

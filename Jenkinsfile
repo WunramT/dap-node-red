@@ -52,6 +52,8 @@ pipeline {
         ])
         booleanParam(name: 'DRY_RUN', defaultValue: true,
             description: 'Print the diff and change nothing. Leave on until the diff is what you expect.')
+        string(name: 'EXPECT_REV', defaultValue: '',
+            description: 'The rev the dry run reported for this instance. With it, a deploy refuses to write when the instance changed in between — a browser deploy, or another run. Without it, the deploy overwrites whatever it finds. One instance only.')
         booleanParam(name: 'DEPLOY_PALETTE', defaultValue: false,
             description: 'Also pull the pinned image and recreate the service. RESTARTS the container — only needed when apps/<app>/package.json changed.')
     }
@@ -75,6 +77,12 @@ pipeline {
 
                     if (!TARGETS) {
                         error("No instance named '${params.INSTANCE}' in registry.yml")
+                    }
+                    // One rev belongs to one instance, so pinning it across a
+                    // fleet run would be a claim about twelve instances made
+                    // from one of them.
+                    if (params.EXPECT_REV?.trim() && params.INSTANCE == 'ALL') {
+                        error('EXPECT_REV is one instance\'s rev — pick that instance, not ALL')
                     }
                     def skipped = TARGETS.findAll { !it.app }
                     if (skipped) {
@@ -184,6 +192,9 @@ void deployInstance(Map inst, Map hosts) {
         sshPut remote: remote, from: 'deploy.env', into: "${REMOTE_DIR}/"
 
         def dryRun = params.DRY_RUN ? '--dry-run' : ''
+        // Read in the dry run, approved by a human, pinned here: an edit made
+        // between the two stops the write instead of being flattened by it.
+        def expect = params.EXPECT_REV?.trim() ? "--expect-rev ${params.EXPECT_REV.trim()}" : ''
         // The env file is sourced and deleted in the same shell, so the
         // password never rests on the host between steps. `set +x` keeps it
         // out of the trace; deploy.py itself never echoes it.
@@ -194,7 +205,7 @@ void deployInstance(Map inst, Map hosts) {
             set +x
             . ./deploy.env
             rm -f deploy.env
-            python3 scripts/deploy.py --instance ${inst.name} ${dryRun}
+            python3 scripts/deploy.py --instance ${inst.name} ${dryRun} ${expect}
         """
 
         if (params.DEPLOY_PALETTE && !params.DRY_RUN) {
