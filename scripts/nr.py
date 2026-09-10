@@ -28,6 +28,7 @@ that reviewable path optional.
 from __future__ import annotations
 
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -156,6 +157,19 @@ def stage_dns(app: str, search: list[str]) -> str | None:
     path = SESSION / app / "dns.yml"
     path.write_text("\n".join(body) + "\n", encoding="utf-8")
     return f".editor-session/{app}/dns.yml"
+
+
+def session_digest(app: str) -> str | None:
+    """Fingerprint of the session's flow, to tell "the editor wrote" from "it never ran".
+
+    A compose run that fails — an image it cannot pull, a port already taken —
+    leaves the staged copy exactly as staged. Merging that back is harmless,
+    because the merge restores every tab's state from Git and lands on the same
+    bytes, but reporting it as "copied back" points the reader at a diff that
+    does not exist while the actual failure scrolls past above.
+    """
+    f = SESSION / app / "flows.json"
+    return hashlib.sha256(f.read_bytes()).hexdigest() if f.exists() else None
 
 
 def merge_session(app: str, was: dict[str, bool]) -> list[str]:
@@ -289,14 +303,27 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         print(f"editor image:   {env.get('EDITOR_IMAGE', 'nodered/node-red:' + version)}")
         print(f"editor network: {env.get('EDITOR_NETWORK', 'bridged')}"
               f"{'  (no route out)' if isolated else '  (databases and brokers reachable)'}\n")
+        staged = session_digest(inst["app"])
+        code = None
         try:
-            return run([*compose, *files, "up"], env)
+            code = run([*compose, *files, "up"], env)
+            return code
         finally:
             # Also on Ctrl-C, which is the normal way to end an editor session.
-            added = merge_session(inst["app"], was)
-            print(f"\ncopied back into apps/{inst['app']}/flows.json"
-                  f"{' — new tab(s) kept as you left them: ' + ', '.join(added) if added else ''}")
-            print(f"  git diff apps/{inst['app']}/flows.json")
+            if session_digest(inst["app"]) == staged:
+                print(f"\nthe editor wrote no flow, so apps/{inst['app']}/flows.json is "
+                      f"untouched.")
+                if code:
+                    print("  The compose run above failed. 'unauthorized ... action: pull'\n"
+                          "  is a missing registry login — and log in with the engine that\n"
+                          "  actually pulls: podman compose here hands off to\n"
+                          "  docker-compose, so the image comes through the Docker daemon.\n"
+                          "    docker login harbor.aks-infra.polipol-service.de")
+            else:
+                added = merge_session(inst["app"], was)
+                print(f"\ncopied back into apps/{inst['app']}/flows.json"
+                      f"{' — new tab(s) kept as you left them: ' + ', '.join(added) if added else ''}")
+                print(f"  git diff apps/{inst['app']}/flows.json")
 
     env = build_env(inst, cfg, need_password=True)
     script = {"check": "drift-check.py", "capture": "capture.py", "deploy": "deploy.py"}[action]
