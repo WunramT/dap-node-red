@@ -46,7 +46,13 @@ services:
     image: ${EDITOR_IMAGE:-nodered/node-red:${NODE_RED_VERSION:-5.0.1}}
     container_name: node-red-editor
     ports:
-      - "127.0.0.1:1880:1880"     # localhost only — not reachable from the network
+      # EDITOR_BIND is the address the port is published on, and 127.0.0.1 is
+      # only right when the daemon runs on the machine you browse from. With
+      # podman on Windows or macOS, or from inside a dev container, the daemon
+      # is in a VM and its loopback is not yours: the port lands somewhere you
+      # cannot reach. nr.py sets 0.0.0.0 in those cases, where the VM forwards
+      # it to your localhost.
+      - "${EDITOR_BIND:-127.0.0.1}:1880:1880"
     volumes:
       # EDITOR_DATA is the staged session directory nr.py prepares. REPO_ROOT is
       # empty outside a dev container, so this stays the relative path next to

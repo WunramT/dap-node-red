@@ -74,6 +74,15 @@ def write_staged(flows):
     (nr.SESSION / APP / "flows.json").write_text(json.dumps(flows, indent=2) + "\n", encoding="utf-8")
 
 
+# The published address is not cosmetic: with the daemon in a VM, which is
+# podman on Windows and any dev container, loopback publishes the port
+# somewhere the browser cannot reach and the editor looks dead.
+check("loopback when the daemon is local", nr.editor_bind(["docker", "compose"], {}) == "127.0.0.1")
+check("every interface when the engine is podman",
+      nr.editor_bind(["podman", "compose"], {}) == "0.0.0.0")
+check("and when we are inside a dev container",
+      nr.editor_bind(["docker", "compose"], {"LOCAL_WORKSPACE_FOLDER": "C:/x"}) == "0.0.0.0")
+
 print("nr.py editor session")
 original_bytes = LIVE.read_bytes()
 try:
