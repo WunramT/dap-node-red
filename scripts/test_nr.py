@@ -151,7 +151,8 @@ try:
         REG = ROOT / "registry.yml"
         reg_before = REG.read_bytes()
         try:
-            bumped = nr.bump_palette_tag(APP)
+            inst = nr.nodered.find(APP)
+            bumped = nr.bump_palette_tag(inst)
             check("the palette build is raised", bumped and bumped[1].endswith("-2"), str(bumped))
             after = REG.read_text(encoding="utf-8")
             check("only that instance's tag moved",
@@ -161,8 +162,8 @@ try:
                   after.split("wfm-test:4.0.9-2")[1].split("\n")[0])
             check("and every other comment in the file survives",
                   after.count("#") == reg_before.decode().count("#"))
-            check("an unknown instance is refused, not guessed",
-                  nr.bump_palette_tag("no-such-instance") is None)
+            check("a tag with no numeric build is refused, not guessed",
+                  nr.bump_palette_tag({**inst, "image_tag": "repo/app:4.0.9"}) is None)
         finally:
             REG.write_bytes(reg_before)
 

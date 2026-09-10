@@ -22,8 +22,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from deploy import (  # noqa: E402
-    ROOT, base_url_for, env_credentials, get_token, load_instances, request, resolve_base,
+from nodered import (  # noqa: E402
+    ROOT, base_url, env_credentials, find, get_token, request,
 )
 from normalize import normalize, render  # noqa: E402
 
@@ -35,16 +35,14 @@ def main() -> int:
                     help="print the diff and write nothing")
     args = ap.parse_args()
 
-    inst = next((i for i in load_instances() if i.get("name") == args.instance), None)
-    if not inst:
-        raise SystemExit(f"no instance named {args.instance} in registry.yml")
+    inst = find(args.instance)
     app = inst.get("app")
     if not app:
         raise SystemExit(f"{inst['name']} has no app — nothing to capture into. "
                          f"Give it one in registry.yml first.")
 
     admin_root = inst.get("admin_root") or ""
-    base = resolve_base(base_url_for(inst), admin_root)
+    base = base_url(inst)
     creds = env_credentials(inst["auth_credential_id"])
     token = get_token(base, admin_root, *creds) if creds else None
     _, payload = request(f"{base}{admin_root}/flows", token=token)

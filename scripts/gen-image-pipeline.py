@@ -29,6 +29,9 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import nodered  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "apps" / "build-image-pipeline.yml"
 
@@ -99,11 +102,12 @@ class NoAliases(yaml.SafeDumper):
         return True
 
 
+def apps() -> list[dict]:
+    return sorted((i for i in nodered.instances() if i.get("app")), key=lambda i: i["app"])
+
+
 def render() -> str:
-    registry = yaml.safe_load((ROOT / "registry.yml").read_text(encoding="utf-8"))
-    instances = sorted((i for i in registry["instances"] if i.get("app")),
-                       key=lambda i: i["app"])
-    includes, jobs = blocks(instances)
+    includes, jobs = blocks(apps())
     dump = lambda d: yaml.dump(d, Dumper=NoAliases, sort_keys=False, width=100)
     body = dump({"include": includes}) + "\n" + dump(jobs)
     return HEADER + body
@@ -124,9 +128,7 @@ def main() -> int:
         return 0
 
     OUT.write_text(want, encoding="utf-8")
-    registry = yaml.safe_load((ROOT / "registry.yml").read_text(encoding="utf-8"))
-    n = sum(1 for i in registry["instances"] if i.get("app"))
-    print(f"wrote {OUT} — {n} images, one per app")
+    print(f"wrote {OUT} — {len(apps())} images, one per app")
     return 0
 
 

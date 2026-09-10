@@ -5,6 +5,7 @@ The stub answers the way Node-RED does: a token endpoint, a v2 GET that carries
 a rev, and a POST that returns 409 when the rev it is given is stale.
 """
 
+import ast
 import json
 import os
 import re
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "deploy.py"
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from deploy import load_instances, env_credentials  # noqa: E402
+from nodered import credential_stem, env_credentials, instances  # noqa: E402
 
 FAILED = []
 
@@ -94,20 +95,20 @@ BASE = f"http://127.0.0.1:{server.server_address[1]}"
 print("deploy.py")
 
 # --- registry is readable, and the target resolves --------------------------
-instances = load_instances()
-check("registry loads", len(instances) == 14, str(len(instances)))
-check("instance names are unique", len({i["name"] for i in instances}) == 14)
-WAG = wag = next(i for i in instances if i["name"] == "wag-prod")
+known = instances()
+check("registry loads", len(known) == 14, str(len(known)))
+check("instance names are unique", len({i["name"] for i in known}) == 14)
+WAG = wag = next(i for i in known if i["name"] == "wag-prod")
 check("admin_root read correctly", wag["admin_root"] == "/node-red-prod", wag.get("admin_root"))
 # An instance whose runtime serves the API at / carries admin_root: "" — the
 # loader has to keep that as an empty string, because None would make
 # f"{base}{admin_root}/flows" read "None/flows". Which instances those are is
 # registry data and changes with the estate, so this asks the registry rather
 # than naming one: gor and jan are root-served today.
-rootless = [i for i in instances if i["admin_root"] == ""]
+rootless = [i for i in known if i["admin_root"] == ""]
 check("at least one instance is root-served", rootless, str([i["name"] for i in rootless]))
 check("and an empty admin_root stays a string, not None",
-      all(isinstance(i["admin_root"], str) for i in instances))
+      all(isinstance(i["admin_root"], str) for i in known))
 check("credential env naming", env_credentials("nodered-x-auth") is None)
 
 # A stale registry.json used to shadow registry.yml, so an instance that was
@@ -116,7 +117,7 @@ STALE = ROOT / "registry.json"
 existing = STALE.read_bytes() if STALE.exists() else None
 try:
     STALE.write_text(json.dumps({"instances": [{"name": "only-in-the-json"}]}), encoding="utf-8")
-    names = {i["name"] for i in load_instances()}
+    names = {i["name"] for i in instances()}
     check("registry.yml wins over a stale registry.json",
           "wfm-test" in names and "only-in-the-json" not in names, str(sorted(names)[:3]))
 finally:
@@ -125,7 +126,7 @@ finally:
     else:
         STALE.write_bytes(existing)
 check("no CHANGEME placeholder survives in the registry",
-      not any("CHANGEME" in str(v) for i in instances for v in i.values()))
+      not any("CHANGEME" in str(v) for i in known for v in i.values()))
 
 
 
@@ -134,7 +135,7 @@ def run(*args, creds=True, base=BASE):
     one in registry.yml is a legitimate change, not a reason for tests to fail."""
     env = {**os.environ, "NODE_RED_BASE_URL": base}
     if creds:
-        stem = re.sub(r"[^A-Za-z0-9]", "_", WAG["auth_credential_id"]).upper()
+        stem = credential_stem(WAG["auth_credential_id"])
         env[f"{stem}_USR"] = "admin"
         env[f"{stem}_PSW"] = "secret"
     return subprocess.run([sys.executable, str(SCRIPT), *args],
@@ -181,9 +182,27 @@ check("a conflict leaves the running flow alone",
 # --- no --force exists ------------------------------------------------------
 r = run("--instance", "wag-prod", "--force")
 check("--force is not a flag", r.returncode != 0 and "unrecognized arguments" in r.stderr)
-check("the word --force appears nowhere in the source",
-      "--force" not in (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8").replace(
-          "There is no --force", ""))
+def code_only(path: Path) -> str:
+    """The file with its docstrings and comments removed.
+
+    The guarantee is about code, not prose: both files say in words that there
+    is no --force, and pinning the wording of that sentence made the check
+    fail the first time the paragraph was rewritten.
+    """
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        doc = ast.get_docstring(node, clean=False) if isinstance(
+            node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else None
+        if doc:
+            source = source.replace(doc, "", 1)
+    return re.sub(r"(?m)#.*$", "", source)
+
+
+check("no --force in the deploy code",
+      "--force" not in code_only(ROOT / "scripts" / "deploy.py"))
+check("nor in the library it deploys through",
+      "--force" not in code_only(ROOT / "scripts" / "nodered.py"))
 
 # --- auth failures are loud -------------------------------------------------
 STATE["stale"] = False
@@ -234,7 +253,7 @@ DRIFT = ROOT / "scripts" / "drift-check.py"
 def drift(*args, creds=True):
     env = {**os.environ, "NODE_RED_BASE_URL": BASE}
     if creds:
-        stem = re.sub(r"[^A-Za-z0-9]", "_", WAG["auth_credential_id"]).upper()
+        stem = credential_stem(WAG["auth_credential_id"])
         env[f"{stem}_USR"], env[f"{stem}_PSW"] = "admin", "secret"
     return subprocess.run([sys.executable, str(DRIFT), *args],
                           capture_output=True, text=True, env=env, cwd=ROOT)

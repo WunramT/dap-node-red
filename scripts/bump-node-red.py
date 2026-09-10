@@ -4,24 +4,14 @@
     python3 scripts/bump-node-red.py --to 5.0.1 --instance cho-test
     python3 scripts/bump-node-red.py --to 5.0.1 --all --dry-run
 
-The version of an instance lives in two places that must agree:
+The version of an instance lives in two places that must agree: the
+Dockerfile's FROM, which is what CI builds, and registry.yml's image_tag,
+which is what the deploy pins and what `nr.py edit` runs locally. This edits
+both or neither. The palette build resets to 1, because it counts builds of
+that palette on that version.
 
-  * apps/<app>/Dockerfile   FROM docker.io/nodered/node-red:<version>
-  * registry.yml            image_tag  .../<app>:<version>-<palette build>
-
-The first is what CI builds. The second is what the deploy pins, what a
-palette rebuild is triggered by, and what `nr.py edit` runs locally. Editing
-one and not the other gives an image whose contents do not match its name —
-and across twelve apps that is a matter of when, not if. So this edits both,
-in one pass, or neither.
-
-The palette build resets to 1, because it counts builds of that palette on
-that version, and this is the first.
-
-An upgrade is a real change, not bookkeeping: it crosses whatever the release
-notes say between the two versions, and it reaches an instance only through
-the palette transport, which recreates the container. Roll it one instance at
-a time, workbench first.
+Reaching an instance still means the palette transport, which recreates the
+container, so roll the deploys one at a time, workbench first.
 """
 
 from __future__ import annotations
@@ -32,15 +22,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import nodered  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-REGISTRY = ROOT / "registry.yml"
 VERSION = re.compile(r"^\d+\.\d+\.\d+$")
-
-
-def instances() -> list[dict]:
-    return yaml.safe_load(REGISTRY.read_text(encoding="utf-8"))["instances"]
 
 
 def dockerfile_version(app: str) -> str | None:
@@ -53,34 +39,20 @@ def dockerfile_version(app: str) -> str | None:
 
 def bump(inst: dict, to: str, write: bool) -> tuple[str, str] | None:
     """Rewrite one instance's Dockerfile and image_tag. Returns (old, new) tags."""
-    app = inst["app"]
     tag = inst["image_tag"]
-    path, _, version_build = tag.partition(":")
-    old_version, _, _build = version_build.rpartition("-")
-    if old_version == to:
+    if nodered.tag_version(tag) == to:
         return None
-
-    new_tag = f"{path}:{to}-1"
+    new_tag = f"{tag.partition(':')[0]}:{to}-1"
     if not write:
         return tag, new_tag
 
-    # The Dockerfile: only the FROM line, so the comments explaining the
-    # palette install survive.
-    docker = ROOT / "apps" / app / "Dockerfile"
-    text = docker.read_text(encoding="utf-8")
-    text, n = re.subn(r"^(FROM\s+\S+/node-red:)\S+\s*$", rf"\g<1>{to}", text, count=1, flags=re.M)
+    docker = ROOT / "apps" / inst["app"] / "Dockerfile"
+    text, n = re.subn(r"^(FROM\s+\S+/node-red:)\S+\s*$", rf"\g<1>{to}",
+                      docker.read_text(encoding="utf-8"), count=1, flags=re.M)
     if n != 1:
-        sys.exit(f"{app}: no FROM ...node-red:<version> line in its Dockerfile")
+        sys.exit(f"{inst['app']}: no FROM ...node-red:<version> line in its Dockerfile")
     docker.write_text(text, encoding="utf-8")
-
-    # registry.yml as text, because PyYAML would drop every comment in it,
-    # including the ones recording which version each instance runs and why.
-    registry = REGISTRY.read_text(encoding="utf-8")
-    block = re.search(rf"^  - name: {re.escape(inst['name'])}$.*?(?=^  - name: |\Z)",
-                      registry, re.S | re.M)
-    line = re.search(r"^(\s+image_tag:\s*)(\S+)(.*)$", block.group(0), re.M)
-    edited = block.group(0).replace(line.group(0), f"{line.group(1)}{new_tag}{line.group(3)}", 1)
-    REGISTRY.write_text(registry.replace(block.group(0), edited, 1), encoding="utf-8")
+    nodered.set_image_tag(inst["name"], new_tag)
     return tag, new_tag
 
 
@@ -99,7 +71,7 @@ def main() -> int:
         sys.exit(f"--to takes a version like 5.0.1, not {args.to!r}. A floating tag "
                  f"would defeat the pin (decision 5).")
 
-    known = {i["name"]: i for i in instances() if i.get("app")}
+    known = {i["name"]: i for i in nodered.instances() if i.get("app")}
     if args.all:
         targets = list(known.values())
     else:
@@ -114,7 +86,7 @@ def main() -> int:
         # The Dockerfile is what CI builds from, so a disagreement there is the
         # one that produces a wrongly named image.
         on_disk = dockerfile_version(inst["app"])
-        in_tag = inst["image_tag"].partition(":")[2].rpartition("-")[0]
+        in_tag = nodered.tag_version(inst["image_tag"])
         if on_disk and on_disk != in_tag:
             sys.exit(f"{inst['name']}: its Dockerfile says {on_disk} and its image_tag "
                      f"says {in_tag}. Reconcile that first — this script would carry "
@@ -123,8 +95,8 @@ def main() -> int:
         result = bump(inst, args.to, write=not args.dry_run)
         (already if result is None else moved).append(inst["name"])
         if result:
-            print(f"  {inst['name']:<11} {result[0].rsplit('/', 1)[-1]} -> "
-                  f"{result[1].rsplit('/', 1)[-1]}")
+            print(f"  {inst['name']:<11} {nodered.tag_short(result[0])} -> "
+                  f"{nodered.tag_short(result[1])}")
 
     if already:
         print(f"\nalready on {args.to}: {', '.join(already)}")

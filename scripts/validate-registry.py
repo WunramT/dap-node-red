@@ -100,12 +100,11 @@ def palette_tags_moved(ref: str) -> list[str]:
               file=sys.stderr)
         return []
 
+    current = (yaml.safe_load(REGISTRY.read_text(encoding="utf-8")) or {}).get("instances", [])
     was = {i["name"]: i.get("image_tag") for i in
            (yaml.safe_load(before) or {}).get("instances", [])}
-    now = {i["name"]: i.get("image_tag") for i in
-           (yaml.safe_load(REGISTRY.read_text(encoding="utf-8")) or {}).get("instances", [])}
-    by_app = {i.get("app"): i["name"] for i in
-              (yaml.safe_load(REGISTRY.read_text(encoding="utf-8")) or {}).get("instances", [])}
+    now = {i["name"]: i.get("image_tag") for i in current}
+    by_app = {i.get("app"): i["name"] for i in current}
 
     stale = []
     for app in sorted(apps):
