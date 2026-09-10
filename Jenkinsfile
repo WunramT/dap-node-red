@@ -177,6 +177,7 @@ void deployInstance(Map inst, Map hosts) {
 
         // deploy.py takes credentials from the environment, never from an
         // argument — an argument is visible in `ps` to anyone on the host.
+        // The stem is what nodered.credential_stem() builds on the other side.
         def stem = inst.auth_credential_id.replaceAll(/[^A-Za-z0-9]/, '_').toUpperCase()
         writeFile file: 'deploy.env', text: """\
             export ${stem}_USR='${NR_USR}'
@@ -185,6 +186,7 @@ void deployInstance(Map inst, Map hosts) {
 
         sshCommand remote: remote, command: "mkdir -p ${REMOTE_DIR}/scripts ${REMOTE_DIR}/apps/${inst.app}"
         sshPut remote: remote, from: 'scripts/deploy.py',    into: "${REMOTE_DIR}/scripts/"
+        sshPut remote: remote, from: 'scripts/nodered.py',   into: "${REMOTE_DIR}/scripts/"
         sshPut remote: remote, from: 'scripts/normalize.py', into: "${REMOTE_DIR}/scripts/"
         sshPut remote: remote, from: 'registry.json',        into: "${REMOTE_DIR}/"
         sshPut remote: remote, from: "apps/${inst.app}/flows.json",

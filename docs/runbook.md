@@ -18,6 +18,61 @@ Per instance, tar together:
 
 Then pull the tarballs off the box before anything else happens.
 
+## Moving an instance to a new container
+
+`wfm-prod` was done this way on 2026-09-10: the flow moved from the old
+`node-red` container to a `node-red-prod` named like the other hosts. Five
+things decide whether it works, and four of them are invisible if you skip
+them.
+
+**Git holds no credentials, and must not.** `GET /flows` never returns them, so
+a deploy into a fresh container carries the logic and neither the stored logins
+nor any uploaded certificate. Those live in the old container's
+`flows_cred.json`, encrypted with its key.
+
+**The key lives in two files, and both have to name the old one.**
+
+- `settings.js` → `credentialSecret`: the key to use from now on.
+- `/data/.config.runtime.json` → `_credentialSecret`: the key the file on disk
+  is actually encrypted with.
+
+When they differ, Node-RED reads with the second and re-encrypts with the
+first, which is how a rotation is meant to work — and why setting only
+`settings.js` decrypts with a key that never encrypted anything. The symptom is
+`Error loading credentials: ... is not valid JSON` with binary in the message,
+and the instance keeps running with no credentials at all. Set both, with the
+container stopped, and check with a fingerprint rather than by eye:
+
+```bash
+sudo python3 - <<'PY'
+import hashlib, json, pathlib, re
+OLD = pathlib.Path('<old>/data'); NEW = pathlib.Path('<new>/data')
+key = json.loads((OLD / '.config.runtime.json').read_text())['_credentialSecret']
+s, n = re.subn(r'(credentialSecret:\s*")[^"]*(")', lambda m: m.group(1) + key + m.group(2),
+               (NEW / 'settings.js').read_text(), count=1)
+assert n == 1, 'no active credentialSecret line'
+(NEW / 'settings.js').write_text(s)
+rt = NEW / '.config.runtime.json'
+data = json.loads(rt.read_text()) if rt.exists() else {}
+data['_credentialSecret'] = key
+rt.write_text(json.dumps(data))
+print('fingerprint:', hashlib.sha256(key.encode()).hexdigest()[:8])
+PY
+```
+
+**Do not press Deploy in the empty editor** between copying `flows_cred.json`
+and deploying the flow. Node-RED drops credentials belonging to no node when it
+saves, and until the flow lands there are no nodes.
+
+**Stop the old container before deploying the new one**, not after. Both hold
+the same flow the moment the deploy lands, and a flow that publishes would
+publish twice.
+
+**`restart: always` outlives a stop.** An explicit `docker compose stop` is
+remembered across a daemon restart, but any `docker compose up -d` on that file
+starts the service again, and one file usually holds every service on the host.
+Remove the service, do not just stop it.
+
 ## The one settings.js edit
 
 Every change to `settings.js` restarts the container. Three changes are pending — the `credentialSecret` pin, and on two instances a deviation to normalize — so they are made in one edit and one restart per instance, after the backup gate.
@@ -214,10 +269,95 @@ A refused connection means the opposite: nothing is listening, so the instance o
 
 ## Palette change
 
-1. Edit `apps/<app>/package.json`.
-2. Commit — GitLab CI builds and signs a new image.
-3. Update `image_tag` in `registry.yml` to the new exact tag.
-4. Jenkins recreates that one service. This restarts the container; the ingest gap is expected here.
+A new palette module does **not** travel with a flow deploy. `POST /flows`
+carries flow logic and installs nothing, so a flow whose nodes the target image
+does not have deploys "successfully" and then logs `Unrecognised node type` and
+does not run. The palette is the second transport, and it restarts the
+container.
+
+**Installing a module through "Manage palette" in the local editor is carried
+into the app for you.** That install runs npm in the session's `/data`, which is
+gitignored — so on exit `nr.py` writes any module the app does not already pin
+into `apps/<app>/package.json`, at the version npm actually resolved, and says
+so. Review it with `git diff`; the rest of the sequence is still yours.
+
+The merge is **additive**. The baked palette lives in the image, not under
+`/data`, so a module missing from the session means "already in the image",
+never "removed" — a two-way sync would empty the manifest on the first session.
+Removing a module is therefore a manual edit of `apps/<app>/package.json`.
+
+1. Have the dependency in `apps/<app>/package.json` with an exact version —
+   from the editor session, or written by hand. The editor session also raises
+   the palette-build suffix of that instance's `image_tag` in `registry.yml`,
+   because the two belong in one commit: CI pushes the tag it finds there, so
+   a palette change with an unchanged tag replaces the image the instance runs
+   instead of building a new one. `validate-registry.py --changed-since <ref>`
+   fails on exactly that, and CI runs it against the previous commit.
+2. Commit to the default branch — GitLab CI builds and signs a new image. It
+   builds **only** when that app's `package.json` or `Dockerfile` changed, and
+   only on the default branch: a flow commit must not rebuild, because it would
+   push the same pinned tag with different content. The tag is
+   `<node-red-version>-<palette build>`, so raise the suffix in `registry.yml`
+   in the same commit: `wfm-test:4.0.9-1` becomes `wfm-test:4.0.9-2`.
+3. Update `image_tag` in `registry.yml` to that exact tag. `latest` fails
+   validation (decision 5).
+4. Jenkins with `DEPLOY_PALETTE=true`, `DRY_RUN=false`. It deploys the flow
+   first and recreates the service after, which is the order that works: the
+   new container starts on the flow that was just written, with the palette it
+   needs. This restarts the container; the ingest gap is expected here.
+
+To see the new nodes in the local editor, `nr.py edit <inst> --baked` — but only
+after step 3, because `--baked` runs whatever `image_tag` names.
+
+## Node-RED version upgrade
+
+The estate runs three versions, because every instance was first started on a
+different date against `latest` (`architecture.md`, "Version spread").
+Converging them is an upgrade, and it reaches an instance the same way a new
+palette does: a rebuilt image and a container recreate.
+
+The version lives in **two** places per instance, and they have to agree:
+
+- `apps/<app>/Dockerfile` — the `FROM docker.io/nodered/node-red:<version>`, which is what CI builds
+- `registry.yml` — the `image_tag`, `<app>:<version>-<palette build>`, which is what the deploy pins, what triggers the rebuild, and what `nr.py edit` runs locally
+
+```bash
+python3 scripts/bump-node-red.py --to 5.0.1 --all --dry-run     # what it would do
+python3 scripts/bump-node-red.py --to 5.0.1 --instance wfm-test  # one instance
+```
+
+It rewrites both, resets the palette build to 1, refuses when the two
+disagree already, and regenerates `apps/build-image-pipeline.yml`. Then
+`validate-registry.py`, `git diff`, and a commit to the default branch — CI
+builds each changed app.
+
+**Roll the deploys one instance at a time**, each one `DEPLOY_PALETTE=true`,
+`DRY_RUN=false`. `--all` in the bump is fine, because that is a commit; `--all`
+in the deploy is not, because each one is a container recreate. Order:
+a workbench, then that site's prod, then the next site.
+
+What to watch on the first one:
+
+- **The build is the cheap test.** A palette module that does not support the
+  new Node-RED or its Node.js fails `npm install` in CI, before anything is
+  deployed. That is the signal you want, and it costs nothing.
+- **Node count unchanged** after the recreate, and the palette nodes load
+  rather than showing as unknown.
+- **`Error loading credentials` in the log** would mean the `credentialSecret`
+  did not survive — it is in `settings.js`, which the upgrade does not touch,
+  so this should not happen. Check anyway; it is one line.
+- **Drift afterwards.** A newer runtime can write fields an older one did not
+  the first time someone deploys from the browser. If `nr.py check` reports
+  drift with no edit behind it, capture it once and commit that normalization
+  deliberately, rather than treating it as an unexplained diff.
+- **Read the release notes between the two versions first.** 4.x to 5.x is a
+  major boundary; this repository carries no opinion about what changed there,
+  and the pipeline cannot tell you.
+
+One thing gets *better* immediately: `nr.py edit` derives the editor version
+from `image_tag`, so once an instance is on 5.0.1 its local editor is too. The
+mismatch that pinning exists to prevent — a 5.x editor writing fields into a
+flow a 4.0.x runtime cannot read — stops being possible for that instance.
 
 ## Changing a flow
 

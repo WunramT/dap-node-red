@@ -11,7 +11,7 @@ Measured, not assumed — `scripts/collect-inventory.py` visited every host:
 | | |
 |---|---|
 | 6 servers with a dev/prod pair | `cho`, `gor`, `jan`, `slu`, `srem`, `wag` — 12 instances |
-| 1 server cut over | `wfm-svr-lin01` now runs `wfm-prod` out of `node-red-prod` (`adminAuth` on, `/node-red-prod`) beside the workbench `node-red-test`, like the other nine. The old `node-red` is stopped and still in the compose file until it is retired — [`wfm-prod-migration.md`](wfm-prod-migration.md), phase E |
+| 1 server cut over | `wfm-svr-lin01` now runs `wfm-prod` out of `node-red-prod` (`adminAuth` on, `/node-red-prod`) beside the workbench `node-red-test`, like the other nine. The old `node-red` is stopped and still in the compose file until it is retired (`go-live-plan.md`, phase 1) |
 | 2 servers under FlowFuse | `pod-svr-lin01`, `dpn-svr-iot` — migration targets, see below |
 | 1 server with no Node-RED at all | `foi-svr-lnx01` — NATS, iot-bridges, dashboards |
 
@@ -31,6 +31,16 @@ Git is the source of truth. Two deployment transports, both versioned, neither s
 | Palette modules (npm) | image rebuild + `docker compose up -d <compose_service>` | rare | yes |
 
 Splitting them is the point. Flow deploys are frequent, so they must not interrupt MQTT ingest. Palette deploys are rare, so a restart gap is acceptable there.
+
+Three levels of interruption, and it is worth knowing which one a change costs:
+
+| | What actually stops | Container |
+|---|---|---|
+| Flow deploy (`DEPLOY_PALETTE=false`) | Only the tabs whose content changed. `deploy.py` sends `Node-RED-Deployment-Type: flows`, so an untouched tab keeps running, keeps its connections and keeps its context | untouched — same process, same uptime, same address |
+| Palette deploy (`DEPLOY_PALETTE=true`, `DRY_RUN=false`) | Everything. `docker compose up -d <service>` replaces the container | **recreated** — new container, new address, `/data` survives because it is a bind mount |
+| `settings.js` edit | Everything, same as above | recreated, and by hand: the pipeline never edits `settings.js` |
+
+`DEPLOY_PALETTE=true` with `DRY_RUN=true` does nothing at all — the Jenkinsfile guards the pull and the recreate on `!DRY_RUN`, so a dry run cannot restart anything.
 
 ```mermaid
 flowchart LR
@@ -135,9 +145,10 @@ The compose file differs per host (`code/node-red/`, `energy/`, `Base_Container/
 | `adminAuth` | active on 12, **off on `wfm-prod`**, not yet set on the new `wfm-test` | token call required before every API call — except `wfm-prod`, which answers 200 and has nothing to authenticate against |
 | published ports | **mixed** | `cho`, `gor`, `jan` publish 1880/1881, `slu-test` 1882, `wfm-prod` 1880 and `wfm-test` 1881; `wag`, `srem` and `slu-prod` publish nothing. Not a uniform property, so the deploy path cannot rely on one |
 | `flowFilePretty` | `true` | flows already multi-line; the normalizer strips and sorts, it does not reformat |
-| `contextStorage` | commented out | memory-only context; a recreate loses nothing but the restart gap |
+| `contextStorage` | commented out | memory-only context, so a recreate has nothing to restore — and nothing to carry across either: whatever a flow accumulated in `flow.` or `global.` context is gone. A flow deploy only resets the context of the tabs it changed |
 | `functionExternalModules` | `true`, zero nodes using it | image baking is a real guarantee only while that stays zero — hence the CI check |
 | compose location | shared `base_container/docker-compose.yml` | service-scoped compose calls until the split lands |
+| container engine | **podman** on a workstation, **Docker** on the servers | `nr.py edit` detects it; `CONTAINER_ENGINE` overrides. On Windows `podman compose` delegates to `docker-compose.exe` but points it at podman's socket, so a registry login belongs to podman |
 
 ## Image tags
 

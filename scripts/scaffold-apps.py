@@ -26,6 +26,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import nodered  # noqa: E402
 from normalize import normalize, render  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -107,11 +108,7 @@ def main() -> int:
     if unknown:
         sys.exit(f"unknown option(s): {' '.join(unknown)}. Only --force.")
 
-    registry = yaml.safe_load((ROOT / "registry.yml").read_text(encoding="utf-8"))
-    by_service = {
-        (i["host"], i["compose_service"]): i
-        for i in registry["instances"]
-    }
+    by_service = {(i["host"], i["compose_service"]): i for i in nodered.instances()}
 
     # Recorded so a machine without inventory/ still pins the right version.
     # Source: the Node-RED version column of the inventory report.

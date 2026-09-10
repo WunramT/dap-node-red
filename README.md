@@ -1,165 +1,111 @@
 # dap-node-red
 
-Deployment for 16 Node-RED runtimes across 10 servers — 14 plain instances, 2 under FlowFuse awaiting migration. Git holds the flows, CI deploys them.
+Git holds the flows for 14 Node-RED instances, CI deploys them. Nothing is
+edited on a production instance by hand.
 
-Two transports, both versioned:
+Two transports. **Flow logic** goes through the Admin API and restarts nothing
+but the tabs that changed. **Palette modules** need a rebuilt image and a
+container recreate.
 
-- **flow logic** → Node-RED Admin API `POST <admin_root>/flows`, no container restart, daily
-- **palette modules** → image rebuild plus a service-scoped compose recreate, rare
+A `*-prod` instance runs the real thing. Its `*-test` twin is a workbench,
+empty unless something is being tested. One tab moves between them at a time.
 
-## Making a change
-
-Everything you do day to day is one of two things: **changing a tab prod already
-runs**, or **building a new one**. Both are worked out on the `*-test` instance —
-a workbench, empty unless something is being tested (decision 15) — and both end
-with a deploy of *both* instances.
-
-The examples use `wfm`. Swap in your own instance pair and tab name; the tab name
-is the label on the tab in the editor, in quotes.
-
-### Way 1 — change a tab that prod already runs
-
-The tab is copied onto the workbench, changed there, tried out, then moved back.
-Prod keeps running the old version the whole time.
+## Change a tab prod already runs
 
 ```bash
-# 1. Is prod still what Git says it is? If not, capture first — see below.
-python3 scripts/nr.py check wfm-prod
+python3 scripts/nr.py check wfm-prod                              # must be clean
+python3 scripts/nr.py promote wfm-prod wfm-test "Flow 1" --copy   # arrives DISABLED
+git commit -am "promote(wfm-test): Flow 1 onto the workbench" && git push
 
-# 2. Bring the tab onto the workbench. It arrives DISABLED, so nothing starts by itself.
-python3 scripts/nr.py promote wfm-prod wfm-test "Extruder abfrage" --copy
-git commit -am "promote(wfm-test): bring Extruder abfrage onto the workbench" && git push
-
-# 3. Change it locally. Every tab opens disabled — enable just this one, then press Deploy.
-python3 scripts/nr.py edit wfm-test
+python3 scripts/nr.py edit wfm-test        # enable that one tab, change it, Deploy, Ctrl-C
 python3 scripts/normalize.py --write apps/wfm-test/flows.json
 git diff apps/wfm-test/flows.json
 git commit -am "flows(wfm-test): ..." && git push
 ```
 
-Now deploy `wfm-test` in Jenkins (see **Deploying**) and try the change on the
-real instance. When it does what you want:
+Deploy `wfm-test`, try it, then ship it:
 
 ```bash
-# 4. Move it back to prod. --move, so it stops on the workbench as it starts in prod.
-python3 scripts/nr.py promote wfm-test wfm-prod "Extruder abfrage" --move
-git commit -am "promote(wfm-prod): ship Extruder abfrage" && git push
+python3 scripts/nr.py promote wfm-test wfm-prod "Flow 1" --move
+git commit -am "promote(wfm-prod): ship Flow 1" && git push
 ```
 
-Then deploy in Jenkins **`wfm-test` first, then `wfm-prod`** — that order is what
-keeps the two from running the same tab at the same time.
+Deploy **`wfm-test` first, then `wfm-prod`**. That order is what keeps one tab
+from running in two places.
 
-### Way 2 — build a new tab
+## New tab
 
-Same loop without the first promotion: there is nothing in prod to copy.
+Same loop without the first promotion.
 
 ```bash
-# 1. Build it on the workbench. Add a tab, press Deploy.
-python3 scripts/nr.py edit wfm-test
+python3 scripts/nr.py edit wfm-test        # add a tab, Deploy, Ctrl-C
 python3 scripts/normalize.py --write apps/wfm-test/flows.json
-git commit -am "flows(wfm-test): add Extruder abfrage" && git push
+git commit -am "flows(wfm-test): add <tab>" && git push
+# deploy wfm-test, try it
+python3 scripts/nr.py promote wfm-test wfm-prod "<tab>" --move
+git commit -am "promote(wfm-prod): ship <tab>" && git push
+# deploy wfm-test, then wfm-prod
 ```
 
-Deploy `wfm-test` in Jenkins and try it. When it works:
+## Deploy
 
-```bash
-# 2. Move it into prod.
-python3 scripts/nr.py promote wfm-test wfm-prod "Extruder abfrage" --move
-git commit -am "promote(wfm-prod): ship Extruder abfrage" && git push
-```
-
-Deploy `wfm-test` first, then `wfm-prod`, as above.
-
-### Deploying
-
-Jenkins does the writing — two runs, and the second is pinned to what the first
-showed you:
+Jenkins writes. Two runs, and the second is pinned to what the first showed you.
 
 | | `INSTANCE` | `DRY_RUN` | `EXPECT_REV` |
 |---|---|---|---|
-| 1. look | `wfm-test` | `true` | empty |
-| 2. write | `wfm-test` | `false` | the `rev` the dry run printed |
+| look | the instance | `true` | empty |
+| write | the instance | `false` | the `rev` the dry run printed |
 
-`EXPECT_REV` is what makes the safety net real: if anyone deployed in the browser
-between your two runs, the write is refused instead of flattening their edit.
-Without it the deploy overwrites whatever it finds, and says so.
+Without `EXPECT_REV` the deploy overwrites whatever it finds, and says so. With
+it, anything that changed the instance in between stops the write. Add
+`DEPLOY_PALETTE=true` only when `package.json` changed; that recreates the
+container.
 
-### Four things worth knowing
+## Rules that bite
 
-- **`--copy` and `--move` are not interchangeable, and neither is the default.**
-  `--copy` for prod → workbench, because prod has to keep running the tab.
-  `--move` for workbench → prod, because a tab left enabled on the workbench
-  runs alongside prod — two runtimes on the same PLC, the same topic, and the
-  only symptom is data arriving twice.
-- **Read what `promote` prints.** If the destination is missing a config node
-  the tab needs, it is created with the *source's* values and named in the
-  output. Point it at the right broker or database before deploying.
-- **A `409` is not a failure to work around.** It means someone edited in the
-  browser. Get that edit into Git and then deploy again — there is no `--force`:
-  ```bash
-  python3 scripts/nr.py capture wfm-test
-  git commit -am "flows(wfm-test): capture browser edit" && git push
-  ```
-- **New palette modules are the other transport.** Editing
-  `apps/<app>/package.json` needs an image rebuild and restarts the container:
-  [`docs/runbook.md`](docs/runbook.md), "Palette change".
+- **A `409` is not a failure to route around.** Someone edited in the browser.
+  `nr.py capture <inst>`, commit, deploy again. There is no `--force`.
+- **The editor opens every tab disabled.** Enable the one you work on. What you
+  enable runs for real, against real systems.
+- **`--copy` down, `--move` up.** A tab left enabled on the workbench publishes
+  alongside prod, and the only symptom is data arriving twice.
+- **Image tags are exact.** `latest` fails validation. A palette change raises
+  the build suffix, and CI refuses a palette change without it.
+- **Secrets stay in Jenkins.** Never in a commit, a log, or a chat.
+- **Name the compose service.** `docker compose up -d node-red-prod`. That file
+  holds other people's services too.
 
-The long version of all of this, including the local editor and what it can and
-cannot reach: [`docs/runbook.md`](docs/runbook.md), "Changing a flow".
-
-## Documentation
-
-| Document | Covers |
-|---|---|
-| [`docs/architecture.md`](docs/architecture.md) | repo layout, the two transports, deploy sequence, measured environment facts |
-| [`docs/decisions.md`](docs/decisions.md) | closed decisions and their reasoning |
-| [`docs/registry.md`](docs/registry.md) | `registry.yml` fields and validation rules |
-| [`docs/runbook.md`](docs/runbook.md) | backup gate, `credentialSecret` pinning, deploy, `409` recovery, drift check |
-| [`docs/open-questions.md`](docs/open-questions.md) | what is still unknown, and the command that answers it |
-| [`docs/go-live-plan.md`](docs/go-live-plan.md) | the remaining steps to a live, team-visible pipeline |
-| [`docs/wfm-prod-migration.md`](docs/wfm-prod-migration.md) | putting an instance that predates the pipeline under it, `wfm-prod` as the pattern |
-
-## Status
+## Commands
 
 | | |
 |---|---|
-| `registry.yml` + schema + validator | done — validates clean, no placeholders left |
-| `normalize.py` + tests | done — validated against all 11 captured flows |
-| `apps/*/flows.json` | done — 12 apps, normalized |
-| `apps/*/package.json` + `Dockerfile` | done — 12 apps, palette versions as installed |
-| `deploy.py` + tests | done — dry-run verified against 10 live instances |
-| `promote.py` + tests | done — one tab and its dependencies, either direction |
-| `drift-check.py` + tests | done — read-only sweep, JSON report |
-| `capture.py` | done — the instance-to-Git return path |
-| `compose/editor.yml` | done — local editor, every tab disabled on arrival |
-| Image build jobs | done — 12 build + sign jobs, generated from `registry.yml`, three at a time |
-| `Jenkinsfile` | done — deploy-only, first run green against `wag-prod` |
+| `nr.py` | Front door. Asks which instance, which action. |
+| `nr.py status` | Every instance: does it still match Git? |
+| `nr.py check <inst>` | Same for one, with the diff. |
+| `nr.py edit <inst>` | Local editor on a copy. `--baked` for palette nodes, `--isolated` for no network. |
+| `nr.py capture <inst>` | Read a running flow back into `apps/`. |
+| `nr.py deploy <inst>` | Dry run only. Real deploys go through Jenkins. |
+| `nr.py promote <a> <b> <tab>` | Move one tab and its dependencies. `--copy` or `--move`. |
+| `normalize.py --write <flow>` | Canonicalize a flow so it diffs readably. Before every commit. |
+| `validate-registry.py` | Registry against the schema and the rules around it. |
+| `drift-check.py --all --json <out>` | Read-only fleet sweep. |
+| `bump-node-red.py --to <version>` | Move instances to another Node-RED version. |
+| `gen-image-pipeline.py` | Regenerate the build jobs after adding an instance. |
+| `collect-inventory.py` | Re-read the hosts over SSH. Reports that a secret exists, never its value. |
 
-Day to day, one entry point:
+Setup once: `pip install -r scripts/requirements.txt`, then copy
+`nr.local.example.json` to `nr.local.json` and fill in the URLs. A blank
+password is prompted for and not stored.
 
-```bash
-python3 scripts/nr.py            # pick an instance, pick an action
-python3 scripts/nr.py status     # which instances still match Git
-```
+## Where things live
 
-`.devcontainer/` brings Python, the dependencies and Docker access for the local
-editor, so the commands above work the same inside VS Code.
-
-The individual commands:
-```bash
-pip install -r scripts/requirements.txt
-
-python3 scripts/validate-registry.py              # registry against the schema
-python3 scripts/test_normalize.py                 # normalizer properties
-python3 scripts/normalize.py --check apps/*/flows.json
-python3 scripts/scaffold-apps.py                  # samples/ -> apps/
-python3 scripts/test_deploy.py                    # deploy against a stub Admin API
-python3 scripts/deploy.py --instance wag-prod --dry-run
-python3 scripts/drift-check.py --all --json inventory/drift.json
-
-# Re-inventory the hosts (read-only; credentials in a gitignored hosts.local.json)
-python3 scripts/collect-inventory.py
-```
-
-`collect-inventory.py` reports the existence of `credentialSecret`, `adminAuth` and any
-FlowFuse token, never their values.
+| | |
+|---|---|
+| `registry.yml` | What runs where. Every tool reads it; nothing hard-codes an instance. |
+| `apps/<app>/` | `flows.json` as deployed, `package.json` as the palette, its `Dockerfile`. |
+| `scripts/nodered.py` | The shared library: instance list, addresses, Admin API, image tags. |
+| `docs/runbook.md` | Operating it: backup gate, deploys, `409` recovery, moving an instance. |
+| `docs/architecture.md` | The system and the measured facts about the estate. |
+| `docs/decisions.md` | Why it is built this way. Read before proposing otherwise. |
+| `docs/go-live-plan.md` | What is left before the whole fleet runs through this. |
+| `docs/open-questions.md` | What is still unknown, and the command that answers it. |

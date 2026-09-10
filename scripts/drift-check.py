@@ -31,8 +31,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from deploy import (  # noqa: E402
-    ROOT, base_url_for, env_credentials, get_token, load_instances, request, resolve_base,
+from nodered import (  # noqa: E402
+    ROOT, base_url, env_credentials, find, get_token, instances, request,
 )
 from normalize import normalize, render  # noqa: E402
 
@@ -49,7 +49,7 @@ def inspect(inst: dict) -> dict:
 
     admin_root = inst.get("admin_root") or ""
     try:
-        base = resolve_base(base_url_for(inst), admin_root)
+        base = base_url(inst)
         creds = env_credentials(inst["auth_credential_id"])
         token = get_token(base, admin_root, *creds) if creds else None
         _, payload = request(f"{base}{admin_root}/flows", token=token)
@@ -93,13 +93,7 @@ def main() -> int:
                     help="exit 3 when anything drifted; for a scheduled check that should go red")
     args = ap.parse_args()
 
-    instances = load_instances()
-    if args.instance:
-        chosen = [i for i in instances if i.get("name") == args.instance]
-        if not chosen:
-            raise SystemExit(f"no instance named {args.instance} in registry.yml")
-    else:
-        chosen = instances
+    chosen = [find(args.instance)] if args.instance else instances()
 
     results = [inspect(i) for i in chosen]
 

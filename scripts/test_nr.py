@@ -112,6 +112,69 @@ try:
     except SystemExit as exc:
         check("an empty session is refused, not copied back", "no tabs" in str(exc))
     check("and the app file is untouched by the refusal", LIVE.read_bytes() == before)
+
+    # --- palette: what "Manage palette" installs has to reach the app ------
+    # It runs npm in the session's /data, which is gitignored, so without this
+    # the module is real locally and absent everywhere that matters.
+    APP_PKG = ROOT / "apps" / APP / "package.json"
+    pkg_before = APP_PKG.read_bytes()
+    session = nr.SESSION / APP
+    try:
+        (session / "package.json").write_text(json.dumps(
+            {"dependencies": {"node-red-contrib-fake": "^1.2.3",
+                              "node-red-contrib-opcua": "^0.9.9"}}), encoding="utf-8")
+        mod = session / "node_modules" / "node-red-contrib-fake"
+        mod.mkdir(parents=True, exist_ok=True)
+        (mod / "package.json").write_text(json.dumps({"version": "1.2.4"}), encoding="utf-8")
+
+        before_deps = json.loads(pkg_before)["dependencies"]
+        added = nr.merge_palette(APP)
+        deps = json.loads(APP_PKG.read_text(encoding="utf-8"))["dependencies"]
+
+        check("a module installed in the editor lands in the app's palette",
+              "node-red-contrib-fake" in deps, str(deps))
+        check("pinned to the version npm actually installed, not the range",
+              deps.get("node-red-contrib-fake") == "1.2.4",
+              str(deps.get("node-red-contrib-fake")))
+        check("and it is reported", added == ["node-red-contrib-fake@1.2.4"], str(added))
+        check("a module the app already pins is left alone",
+              deps.get("node-red-contrib-opcua") == before_deps.get("node-red-contrib-opcua"),
+              str(deps.get("node-red-contrib-opcua")))
+        check("nothing is dropped", set(before_deps) <= set(deps))
+
+        again = nr.merge_palette(APP)
+        check("a second session adds nothing twice", again == [], str(again))
+
+        # A new palette is a new image, and the tag the deploy pins is in
+        # registry.yml — so the bump belongs in the same commit, not in a
+        # human's memory. CI pushes the tag it finds there.
+        REG = ROOT / "registry.yml"
+        reg_before = REG.read_bytes()
+        try:
+            inst = nr.nodered.find(APP)
+            bumped = nr.bump_palette_tag(inst)
+            check("the palette build is raised", bumped and bumped[1].endswith("-2"), str(bumped))
+            after = REG.read_text(encoding="utf-8")
+            check("only that instance's tag moved",
+                  after.count("wfm-test:4.0.9-2") == 1 and "wfm-prod:4.0.9-1" in after)
+            check("the comment on the line survives",
+                  "node-red-contrib-opcua" in after.split("wfm-test:4.0.9-2")[1].split("\n")[0],
+                  after.split("wfm-test:4.0.9-2")[1].split("\n")[0])
+            check("and every other comment in the file survives",
+                  after.count("#") == reg_before.decode().count("#"))
+            check("a tag with no numeric build is refused, not guessed",
+                  nr.bump_palette_tag({**inst, "image_tag": "repo/app:4.0.9"}) is None)
+        finally:
+            REG.write_bytes(reg_before)
+
+        # The baked palette is in the image, not under /data, so an empty
+        # session list must never be read as "the app has no palette".
+        (session / "package.json").write_text(json.dumps({"dependencies": {}}), encoding="utf-8")
+        nr.merge_palette(APP)
+        check("an empty session leaves the palette intact",
+              json.loads(APP_PKG.read_text(encoding="utf-8"))["dependencies"] == deps)
+    finally:
+        APP_PKG.write_bytes(pkg_before)
 finally:
     LIVE.write_bytes(original_bytes)
     shutil.rmtree(nr.SESSION, ignore_errors=True)

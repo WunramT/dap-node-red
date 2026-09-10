@@ -37,6 +37,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import nodered  # noqa: E402
+from normalize import normalize, render  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 LOCAL = ROOT / "nr.local.json"
 PY = sys.executable
@@ -49,19 +53,6 @@ ACTIONS = {
     "deploy":  "show what a deploy would change; never deploys for real",
     "promote": "move one tab between two instances' apps, with its dependencies",
 }
-
-
-def instances() -> list[dict]:
-    sys.path.insert(0, str(ROOT / "scripts"))
-    from deploy import load_instances
-    return load_instances()
-
-
-def registry_source() -> str:
-    """Which file the list came from, for an error message that can be acted on."""
-    sys.path.insert(0, str(ROOT / "scripts"))
-    import deploy
-    return deploy.LOADED_FROM.name if deploy.LOADED_FROM else "the registry"
 
 
 def local_config() -> dict:
@@ -90,10 +81,10 @@ def build_env(inst: dict, cfg: dict, need_password: bool) -> dict:
         sys.exit(f"{inst['name']}: no url in nr.local.json.\n"
                  f"  Copy nr.local.example.json and fill it in — the table in\n"
                  f"  docs/runbook.md lists where each instance answers.")
-    env[f"NODE_RED_BASE_URL_{re.sub(r'[^A-Za-z0-9]', '_', inst['name']).upper()}"] = url
+    env[nodered.base_url_env(inst["name"])] = url
 
     if need_password:
-        stem = re.sub(r"[^A-Za-z0-9]", "_", inst["auth_credential_id"]).upper()
+        stem = nodered.credential_stem(inst["auth_credential_id"])
         user = entry.get("user")
         password = entry.get("password") or (
             getpass.getpass(f"password for {inst['name']} ({user or 'admin'}): ")
@@ -168,8 +159,14 @@ def session_digest(app: str) -> str | None:
     bytes, but reporting it as "copied back" points the reader at a diff that
     does not exist while the actual failure scrolls past above.
     """
-    f = SESSION / app / "flows.json"
-    return hashlib.sha256(f.read_bytes()).hexdigest() if f.exists() else None
+    h = hashlib.sha256()
+    seen = False
+    for name in ("flows.json", "package.json"):
+        f = SESSION / app / name
+        if f.exists():
+            h.update(f.read_bytes())
+            seen = True
+    return h.hexdigest() if seen else None
 
 
 def merge_session(app: str, was: dict[str, bool]) -> list[str]:
@@ -208,18 +205,82 @@ def merge_session(app: str, was: dict[str, bool]) -> list[str]:
         else:
             added.append(node.get("label") or node["id"])
 
-    sys.path.insert(0, str(ROOT / "scripts"))
-    from normalize import normalize, render
     (ROOT / "apps" / app / "flows.json").write_text(render(normalize(flows)), encoding="utf-8")
     return added
+
+
+def installed_version(app: str, module: str) -> str | None:
+    """The version npm actually put in the session, read off the module itself."""
+    manifest = SESSION / app / "node_modules" / module / "package.json"
+    if not manifest.exists():
+        return None
+    try:
+        return json.loads(manifest.read_text(encoding="utf-8")).get("version")
+    except json.JSONDecodeError:
+        return None
+
+
+def merge_palette(app: str) -> list[str]:
+    """Carry a module installed through "Manage palette" into the app's palette.
+
+    That install runs npm in the session's /data, so the module is real and
+    resolved — and invisible to everything else: the session directory is
+    gitignored and only flows.json was ever copied out of it. Writing it into
+    apps/<app>/package.json is what ships it, and the version it resolved beats
+    one typed from memory.
+
+    Additive on purpose. The baked palette lives in the image, not under /data,
+    so a name missing from the session means "already in the image", never
+    "removed" — a two-way sync would empty the manifest on the first session.
+    """
+    session_pkg = SESSION / app / "package.json"
+    app_pkg = ROOT / "apps" / app / "package.json"
+    if not (session_pkg.exists() and app_pkg.exists()):
+        return []
+    try:
+        installed = json.loads(session_pkg.read_text(encoding="utf-8")).get("dependencies") or {}
+    except json.JSONDecodeError:
+        return []
+
+    manifest = json.loads(app_pkg.read_text(encoding="utf-8"))
+    deps = dict(manifest.get("dependencies") or {})
+    added = []
+    for module, declared in sorted(installed.items()):
+        if module in deps:
+            continue
+        # A range would make the built image drift from the one tested here.
+        exact = installed_version(app, module) or declared.lstrip("^~>=< ")
+        deps[module] = exact
+        added.append(f"{module}@{exact}")
+
+    if added:
+        manifest["dependencies"] = dict(sorted(deps.items()))
+        app_pkg.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return added
+
+
+def bump_palette_tag(inst: dict) -> tuple[str, str] | None:
+    """Raise the palette-build suffix of this instance's image_tag.
+
+    A new palette means a new image, and CI pushes the tag registry.yml names —
+    so an unchanged tag is rebuilt with different content under the same name,
+    which nothing reports afterwards. None when the tag has no numeric suffix
+    to raise, because guessing one would name an image CI never built.
+    """
+    old = inst["image_tag"]
+    head, sep, build = old.rpartition("-")
+    if not sep or not build.isdigit():
+        return None
+    new = f"{head}-{int(build) + 1}"
+    nodered.set_image_tag(inst["name"], new)
+    return old, new
 
 
 def compose_cmd(instance: str) -> list[str]:
     """`docker compose` or `podman compose`, whichever this machine has.
 
-    The repository's own convention is podman on a workstation and Docker on the
-    servers (docs/copilot-instructions.md), so hard-coding docker made `edit`
-    the one action that failed on exactly the machines it exists for.
+    Workstations here run podman and the servers run Docker, so a hard-coded
+    engine breaks `edit` on exactly the machines it exists for.
     """
     engine = os.environ.get("CONTAINER_ENGINE")
     if engine:
@@ -247,7 +308,7 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         isolated: bool = False) -> int:
     if action == "status":
         env = dict(os.environ)
-        for i in instances():
+        for i in nodered.instances():
             if not i.get("app"):
                 continue
             entry = cfg.get(i["name"], {})
@@ -284,7 +345,7 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         # the editor has to match it: a 5.x editor writes fields a 4.0.x runtime
         # does not know, into a file that is meant to deploy unchanged.
         # harbor.example/dap-node-red/wfm-prod:4.0.9-1 -> 4.0.9
-        version = inst["image_tag"].rsplit(":", 1)[1].rsplit("-", 1)[0]
+        version = nodered.tag_version(inst["image_tag"])
         env["NODE_RED_VERSION"] = version
         if baked:
             # That app's own image, so its palette nodes open as themselves
@@ -314,7 +375,7 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
                 print(f"\nthe editor wrote no flow, so apps/{inst['app']}/flows.json is "
                       f"untouched.")
                 if code:
-                    registry = inst["image_tag"].split("/", 1)[0]
+                    registry = nodered.tag_registry(inst["image_tag"])
                     print(f"  The compose run above failed. 'unauthorized ... action: pull'\n"
                           f"  is a missing registry login, and the login belongs to the engine\n"
                           f"  that pulls — which is this one, whatever the compose provider is\n"
@@ -329,6 +390,23 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
                 print(f"\ncopied back into apps/{inst['app']}/flows.json"
                       f"{' — new tab(s) kept as you left them: ' + ', '.join(added) if added else ''}")
                 print(f"  git diff apps/{inst['app']}/flows.json")
+                palette = merge_palette(inst["app"])
+                if palette:
+                    print(f"\npalette: {', '.join(palette)} written into "
+                          f"apps/{inst['app']}/package.json, pinned to what you installed.")
+                    bumped = bump_palette_tag(inst)
+                    if bumped:
+                        print(f"  image_tag: {nodered.tag_short(bumped[0])} -> "
+                              f"{nodered.tag_short(bumped[1])} in registry.yml, so CI builds a\n"
+                              f"  new tag instead of replacing the one this instance runs.")
+                    else:
+                        print(f"  image_tag for {inst['name']} does not end in -<number>, so the\n"
+                              f"  palette build could not be raised. Do it by hand before pushing:\n"
+                              f"  CI pushes the tag registry.yml names, and an unchanged tag gets\n"
+                              f"  rebuilt with different content.")
+                    print(f"  A flow deploy installs nothing, so this needs the other transport:\n"
+                          f"  commit both, let CI build, then deploy with DEPLOY_PALETTE=true.\n"
+                          f"  docs/runbook.md, 'Palette change'.")
 
     env = build_env(inst, cfg, need_password=True)
     script = {"check": "drift-check.py", "capture": "capture.py", "deploy": "deploy.py"}[action]
@@ -360,7 +438,7 @@ def choose(prompt: str, options: list[tuple[str, str]]) -> str:
 
 def main() -> int:
     cfg = local_config()
-    all_instances = instances()
+    all_instances = nodered.instances()
 
     argv = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
@@ -389,9 +467,7 @@ def main() -> int:
                      "  See docs/runbook.md, 'Changing a flow'.")
         apps = {}
         for name in argv[1:3]:
-            inst = next((i for i in all_instances if i["name"] == name), None)
-            if inst is None:
-                sys.exit(f"no instance named {name} in {registry_source()}")
+            inst = nodered.find(name)
             if not inst.get("app"):
                 sys.exit(f"{name} has no app of its own, so there is nothing to promote")
             apps[name] = inst["app"]
@@ -408,10 +484,7 @@ def main() -> int:
         ]
         name = choose("Which instance?", options)
 
-    inst = next((i for i in all_instances if i["name"] == name), None)
-    if not inst:
-        sys.exit(f"no instance named {name} in {registry_source()}.\n"
-                 f"  Known: {', '.join(i['name'] for i in all_instances)}")
+    inst = nodered.find(name)
     return act(action, inst, cfg, baked="--baked" in flags,
                isolated="--isolated" in flags)
 
