@@ -22,10 +22,12 @@
   // Runs on every attach, so a new terminal starts by saying what to type.
   "postAttachCommand": "python3 scripts/guide.py --list",
 
-  "forwardPorts": [1880],
-  "portsAttributes": {
-    "1880": { "label": "Node-RED editor", "onAutoForward": "silent" }
-  },
+  // No forwardPorts for 1880. The editor is a SIBLING container on the host's
+  // daemon, not a process inside this one, so nothing listens on 1880 in here
+  // and forwarding it would put a VS Code listener on the browser's
+  // localhost:1880 that tunnels to nothing. That is a grey page rather than a
+  // refused connection, which is worse. The engine's own port publishing is
+  // what carries the editor out, and nr.py prints the address it used.
 
   "containerEnv": {
     // compose/editor.yml mounts ../apps/$APP relative to itself. Inside this
