@@ -83,6 +83,44 @@ check("every interface when the engine is podman",
 check("and when we are inside a dev container",
       nr.editor_bind(["docker", "compose"], {"LOCAL_WORKSPACE_FOLDER": "C:/x"}) == "0.0.0.0")
 
+# With the engine in a VM the browser is outside it, so the message must offer
+# the container's own address and must not claim localhost works. Both branches
+# are checked with the address injected, because whether one is discoverable
+# depends on a container running right now.
+vm = nr.editor_urls("172.20.0.2", "podman", in_vm=True)
+check("in a VM the container address is offered", "http://172.20.0.2:1880" in vm, vm)
+check("and localhost is qualified, not promised", "only if" in vm, vm)
+check("and the way out of a dev container is named", "Ports panel" in vm, vm)
+
+blind = nr.editor_urls(None, "podman", in_vm=True)
+check("with no address it says so and gives the command",
+      "did not report" in blind and "podman port node-red-editor" in blind, blind)
+check("and does not point at a line that is not there", "Ports panel" not in blind, blind)
+
+local = nr.editor_urls("172.20.0.2", "docker", in_vm=False)
+check("with a local daemon localhost is the answer",
+      "http://localhost:1880" in local and "only if" not in local, local)
+
+# The lifecycle: start detached so the address can be read, follow the log, and
+# stop the container on the way out. A foreground `up` left no chance to print
+# an address, and left the container running after some exits.
+calls = []
+real_run = nr.run
+nr.run = lambda argv, env=None: (calls.append(list(argv)), 0)[1]
+try:
+    nr.act("edit", nodered.find(APP), {})
+finally:
+    nr.run = real_run
+def subcommand(call: list[str]) -> str:
+    """What compose was asked to do, with the -f file pairs dropped."""
+    last_file = max(i for i, part in enumerate(call) if part.endswith(".yml"))
+    return " ".join(call[last_file + 1:])
+
+
+sequence = [subcommand(c) for c in calls if "compose" in c]
+check("it starts detached, follows the log, then stops",
+      sequence == ["up -d", "logs -f", "down"], str(sequence))
+
 print("nr.py editor session")
 original_bytes = LIVE.read_bytes()
 try:

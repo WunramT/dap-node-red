@@ -401,7 +401,15 @@ host's daemon, so nothing listens on 1880 inside the dev container and VS Code
 must not forward that port: a forward would claim `localhost:1880` in the
 browser and tunnel it to nothing, which renders as a grey page rather than a
 refused connection. `.devcontainer/devcontainer.json` therefore forwards
-nothing, and the engine's own publishing carries the editor out.
+nothing.
+
+**`nr.py edit` prints the address to open, after the container is up.** It
+starts the editor detached, asks the engine for the container's own address,
+prints it, then follows the log until Ctrl-C and stops the container. Read that
+line rather than assuming `localhost`: with the engine in a VM the container
+address is the one that answers, and on `podman machine` the published port may
+not reach the browser at all. From a dev container, forward the printed address
+in the VS Code Ports panel.
 
 **The editor's port depends on where the container engine runs.** `nr.py edit`
 prints the address it published on. Loopback only reaches you when the daemon

@@ -292,6 +292,43 @@ def editor_bind(compose: list[str], environ) -> str:
     return "0.0.0.0" if in_vm else "127.0.0.1"
 
 
+def editor_address(compose: list[str]) -> str | None:
+    """The editor container's own address, asked of the engine."""
+    out = subprocess.run(
+        [compose[0], "inspect", "-f",
+         "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", "node-red-editor"],
+        capture_output=True, text=True)
+    found = out.stdout.split() if out.returncode == 0 else []
+    return found[0] if found else None
+
+
+def editor_urls(address: str | None, engine: str, in_vm: bool) -> str:
+    """Where to open the editor, and which of the addresses is the reliable one.
+
+    Publishing a port only helps when the machine publishing it is the one
+    running the browser. With the engine in a VM, which is podman on Windows
+    and any dev container, localhost can reach nothing while the container's
+    own address answers.
+    """
+    lines = ["", "editor is up."]
+    if not in_vm:
+        lines.append("  http://localhost:1880")
+    if address:
+        lines.append(f"  http://{address}:1880   the container itself, which answers"
+                     f"{' from in here' if in_vm else ''}")
+    if in_vm:
+        lines.append("  http://localhost:1880   only if the engine's VM forwards it, "
+                     "which it may not")
+        lines.append("")
+        if address:
+            lines.append("  In a dev container the browser is outside both. Forward the")
+            lines.append("  container address above: VS Code Ports panel, Forward a Port.")
+        else:
+            lines.append(f"  {engine} did not report the container's address. Ask it directly:")
+            lines.append(f"    {engine} port node-red-editor")
+    return "\n".join(lines) + "\n"
+
+
 def compose_cmd(instance: str) -> list[str]:
     """`docker compose` or `podman compose`, whichever this machine has.
 
@@ -343,7 +380,7 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         in_vm = env_bind != "127.0.0.1"
 
         print(f"\nEditor for {inst['name']} -> {data}/ (a copy, not apps/{inst['app']}/)\n"
-              f"Open http://localhost:1880 once it starts, then Ctrl-C to finish.\n"
+              f"It prints the address to open once it is up. Ctrl-C finishes.\n"
               f"\n"
               f"{len(labels)} tab(s) arrive DISABLED: {', '.join(labels) or '—'}\n"
               f"Enable the one you want to work on, or add a new tab. Only what you\n"
@@ -388,9 +425,13 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         staged = session_digest(inst["app"])
         code = None
         try:
-            code = run([*compose, *files, "up"], env)
+            code = run([*compose, *files, "up", "-d"], env)
+            if code == 0:
+                print(editor_urls(editor_address(compose), compose[0], in_vm))
+                code = run([*compose, *files, "logs", "-f"], env)
             return code
         finally:
+            run([*compose, *files, "down"], env)
             # Also on Ctrl-C, which is the normal way to end an editor session.
             if session_digest(inst["app"]) == staged:
                 print(f"\nthe editor wrote no flow, so apps/{inst['app']}/flows.json is "
