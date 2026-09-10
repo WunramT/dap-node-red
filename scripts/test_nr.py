@@ -145,6 +145,27 @@ try:
         again = nr.merge_palette(APP)
         check("a second session adds nothing twice", again == [], str(again))
 
+        # A new palette is a new image, and the tag the deploy pins is in
+        # registry.yml — so the bump belongs in the same commit, not in a
+        # human's memory. CI pushes the tag it finds there.
+        REG = ROOT / "registry.yml"
+        reg_before = REG.read_bytes()
+        try:
+            bumped = nr.bump_palette_tag(APP)
+            check("the palette build is raised", bumped and bumped[1].endswith("-2"), str(bumped))
+            after = REG.read_text(encoding="utf-8")
+            check("only that instance's tag moved",
+                  after.count("wfm-test:4.0.9-2") == 1 and "wfm-prod:4.0.9-1" in after)
+            check("the comment on the line survives",
+                  "node-red-contrib-opcua" in after.split("wfm-test:4.0.9-2")[1].split("\n")[0],
+                  after.split("wfm-test:4.0.9-2")[1].split("\n")[0])
+            check("and every other comment in the file survives",
+                  after.count("#") == reg_before.decode().count("#"))
+            check("an unknown instance is refused, not guessed",
+                  nr.bump_palette_tag("no-such-instance") is None)
+        finally:
+            REG.write_bytes(reg_before)
+
         # The baked palette is in the image, not under /data, so an empty
         # session list must never be read as "the app has no palette".
         (session / "package.json").write_text(json.dumps({"dependencies": {}}), encoding="utf-8")

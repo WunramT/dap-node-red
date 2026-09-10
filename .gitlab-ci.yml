@@ -61,6 +61,18 @@ validate:registry:
     # No --draft: every image tag and credential id is filled in, so a
     # placeholder reappearing is a mistake and fails the pipeline.
     - python3 scripts/validate-registry.py --emit-json
+    # A palette change with an unchanged image_tag makes the build below push
+    # the tag the instance already runs, with different content inside it. The
+    # base commit is not always knowable — a first push, a shallow clone — and
+    # then this says so rather than passing quietly.
+    - |
+      base="${CI_MERGE_REQUEST_DIFF_BASE_SHA:-$CI_COMMIT_BEFORE_SHA}"
+      case "$base" in
+        ""|0000000000000000000000000000000000000000)
+          echo "no base commit to compare against — palette-tag check skipped" ;;
+        *)
+          python3 scripts/validate-registry.py --changed-since "$base" ;;
+      esac
     # The generated pipeline carries registry.yml's image tags. If it is stale,
     # CI would build one tag while the deploy pins another.
     - python3 scripts/gen-image-pipeline.py --check

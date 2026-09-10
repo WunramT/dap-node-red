@@ -270,6 +270,41 @@ def merge_palette(app: str) -> list[str]:
     return added
 
 
+def bump_palette_tag(instance: str) -> tuple[str, str] | None:
+    """Raise the palette-build suffix of one instance's image_tag.
+
+    A new palette means a new image, and the image the deploy pins is named in
+    registry.yml — so the two belong in the same commit. Left to a human this
+    is the step that gets forgotten, and forgetting it is not cosmetic: CI
+    builds on a package.json change and pushes the tag registry.yml names, so
+    an unchanged tag is rebuilt with different content underneath. A pinned tag
+    whose content moves is worse than no pin, because nothing reports it.
+
+    Edited as text, not through PyYAML, which would drop every comment in the
+    file — including the ones that record why each version is what it is.
+    """
+    reg = ROOT / "registry.yml"
+    text = reg.read_text(encoding="utf-8")
+    block = re.search(rf"^  - name: {re.escape(instance)}$.*?(?=^  - name: |\Z)",
+                      text, re.S | re.M)
+    if not block:
+        return None
+    line = re.search(r"^(\s+image_tag:\s*)(\S+)(.*)$", block.group(0), re.M)
+    if not line:
+        return None
+
+    old_tag = line.group(2)
+    head, sep, suffix = old_tag.rpartition("-")
+    if not sep or not suffix.isdigit():
+        return None
+    new_tag = f"{head}-{int(suffix) + 1}"
+
+    edited = block.group(0).replace(line.group(0),
+                                    f"{line.group(1)}{new_tag}{line.group(3)}", 1)
+    reg.write_text(text.replace(block.group(0), edited, 1), encoding="utf-8")
+    return old_tag, new_tag
+
+
 def compose_cmd(instance: str) -> list[str]:
     """`docker compose` or `podman compose`, whichever this machine has.
 
@@ -388,10 +423,20 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
                 palette = merge_palette(inst["app"])
                 if palette:
                     print(f"\npalette: {', '.join(palette)} written into "
-                          f"apps/{inst['app']}/package.json, pinned to what you installed.\n"
-                          f"  A flow deploy installs nothing, so this needs the other transport:\n"
-                          f"  raise the suffix of image_tag in registry.yml, let CI build it, then\n"
-                          f"  deploy with DEPLOY_PALETTE=true. docs/runbook.md, 'Palette change'.")
+                          f"apps/{inst['app']}/package.json, pinned to what you installed.")
+                    bumped = bump_palette_tag(inst["name"])
+                    if bumped:
+                        print(f"  image_tag: {bumped[0].rsplit('/', 1)[-1]} -> "
+                              f"{bumped[1].rsplit('/', 1)[-1]} in registry.yml, so CI builds a\n"
+                              f"  new tag instead of replacing the one this instance runs.")
+                    else:
+                        print(f"  image_tag for {inst['name']} does not end in -<number>, so the\n"
+                              f"  palette build could not be raised. Do it by hand before pushing:\n"
+                              f"  CI pushes the tag registry.yml names, and an unchanged tag gets\n"
+                              f"  rebuilt with different content.")
+                    print(f"  A flow deploy installs nothing, so this needs the other transport:\n"
+                          f"  commit both, let CI build, then deploy with DEPLOY_PALETTE=true.\n"
+                          f"  docs/runbook.md, 'Palette change'.")
 
     env = build_env(inst, cfg, need_password=True)
     script = {"check": "drift-check.py", "capture": "capture.py", "deploy": "deploy.py"}[action]

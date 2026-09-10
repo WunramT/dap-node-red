@@ -232,7 +232,12 @@ never "removed" — a two-way sync would empty the manifest on the first session
 Removing a module is therefore a manual edit of `apps/<app>/package.json`.
 
 1. Have the dependency in `apps/<app>/package.json` with an exact version —
-   from the editor session, or written by hand.
+   from the editor session, or written by hand. The editor session also raises
+   the palette-build suffix of that instance's `image_tag` in `registry.yml`,
+   because the two belong in one commit: CI pushes the tag it finds there, so
+   a palette change with an unchanged tag replaces the image the instance runs
+   instead of building a new one. `validate-registry.py --changed-since <ref>`
+   fails on exactly that, and CI runs it against the previous commit.
 2. Commit to the default branch — GitLab CI builds and signs a new image. It
    builds **only** when that app's `package.json` or `Dockerfile` changed, and
    only on the default branch: a flow commit must not rebuild, because it would
