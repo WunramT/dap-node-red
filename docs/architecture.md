@@ -32,6 +32,16 @@ Git is the source of truth. Two deployment transports, both versioned, neither s
 
 Splitting them is the point. Flow deploys are frequent, so they must not interrupt MQTT ingest. Palette deploys are rare, so a restart gap is acceptable there.
 
+Three levels of interruption, and it is worth knowing which one a change costs:
+
+| | What actually stops | Container |
+|---|---|---|
+| Flow deploy (`DEPLOY_PALETTE=false`) | Only the tabs whose content changed. `deploy.py` sends `Node-RED-Deployment-Type: flows`, so an untouched tab keeps running, keeps its connections and keeps its context | untouched — same process, same uptime, same address |
+| Palette deploy (`DEPLOY_PALETTE=true`, `DRY_RUN=false`) | Everything. `docker compose up -d <service>` replaces the container | **recreated** — new container, new address, `/data` survives because it is a bind mount |
+| `settings.js` edit | Everything, same as above | recreated, and by hand: the pipeline never edits `settings.js` |
+
+`DEPLOY_PALETTE=true` with `DRY_RUN=true` does nothing at all — the Jenkinsfile guards the pull and the recreate on `!DRY_RUN`, so a dry run cannot restart anything.
+
 ```mermaid
 flowchart LR
   E[Editor container<br/>mounts apps/&lt;app&gt;/ as /data] --> W[Working tree]
@@ -135,7 +145,7 @@ The compose file differs per host (`code/node-red/`, `energy/`, `Base_Container/
 | `adminAuth` | active on 12, **off on `wfm-prod`**, not yet set on the new `wfm-test` | token call required before every API call — except `wfm-prod`, which answers 200 and has nothing to authenticate against |
 | published ports | **mixed** | `cho`, `gor`, `jan` publish 1880/1881, `slu-test` 1882, `wfm-prod` 1880 and `wfm-test` 1881; `wag`, `srem` and `slu-prod` publish nothing. Not a uniform property, so the deploy path cannot rely on one |
 | `flowFilePretty` | `true` | flows already multi-line; the normalizer strips and sorts, it does not reformat |
-| `contextStorage` | commented out | memory-only context; a recreate loses nothing but the restart gap |
+| `contextStorage` | commented out | memory-only context, so a recreate has nothing to restore — and nothing to carry across either: whatever a flow accumulated in `flow.` or `global.` context is gone. A flow deploy only resets the context of the tabs it changed |
 | `functionExternalModules` | `true`, zero nodes using it | image baking is a real guarantee only while that stays zero — hence the CI check |
 | compose location | shared `base_container/docker-compose.yml` | service-scoped compose calls until the split lands |
 
