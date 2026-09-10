@@ -148,6 +148,7 @@ The compose file differs per host (`code/node-red/`, `energy/`, `Base_Container/
 | `contextStorage` | commented out | memory-only context, so a recreate has nothing to restore — and nothing to carry across either: whatever a flow accumulated in `flow.` or `global.` context is gone. A flow deploy only resets the context of the tabs it changed |
 | `functionExternalModules` | `true`, zero nodes using it | image baking is a real guarantee only while that stays zero — hence the CI check |
 | compose location | shared `base_container/docker-compose.yml` | service-scoped compose calls until the split lands |
+| container engine | **podman** on a workstation, **Docker** on the servers | `nr.py edit` detects it; `CONTAINER_ENGINE` overrides. On Windows `podman compose` delegates to `docker-compose.exe` but points it at podman's socket, so a registry login belongs to podman |
 
 ## Image tags
 

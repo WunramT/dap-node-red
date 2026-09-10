@@ -308,9 +308,8 @@ def bump_palette_tag(instance: str) -> tuple[str, str] | None:
 def compose_cmd(instance: str) -> list[str]:
     """`docker compose` or `podman compose`, whichever this machine has.
 
-    The repository's own convention is podman on a workstation and Docker on the
-    servers (docs/copilot-instructions.md), so hard-coding docker made `edit`
-    the one action that failed on exactly the machines it exists for.
+    Workstations here run podman and the servers run Docker, so a hard-coded
+    engine breaks `edit` on exactly the machines it exists for.
     """
     engine = os.environ.get("CONTAINER_ENGINE")
     if engine:
