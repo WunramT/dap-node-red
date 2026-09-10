@@ -396,6 +396,13 @@ Then in Jenkins: `INSTANCE=wag-prod`, `DRY_RUN=true` to see the diff the pipelin
 
 Step 1 is not optional. If the instance has drifted, your local edit is against a stale base and the deploy will hit a `409`.
 
+**In a dev container the editor is a sibling, not a child.** It runs on the
+host's daemon, so nothing listens on 1880 inside the dev container and VS Code
+must not forward that port: a forward would claim `localhost:1880` in the
+browser and tunnel it to nothing, which renders as a grey page rather than a
+refused connection. `.devcontainer/devcontainer.json` therefore forwards
+nothing, and the engine's own publishing carries the editor out.
+
 **The editor's port depends on where the container engine runs.** `nr.py edit`
 prints the address it published on. Loopback only reaches you when the daemon
 is on the machine you browse from; podman on Windows or macOS keeps it in a VM,
