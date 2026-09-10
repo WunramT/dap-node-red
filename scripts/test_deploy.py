@@ -99,8 +99,15 @@ check("registry loads", len(instances) == 14, str(len(instances)))
 check("instance names are unique", len({i["name"] for i in instances}) == 14)
 WAG = wag = next(i for i in instances if i["name"] == "wag-prod")
 check("admin_root read correctly", wag["admin_root"] == "/node-red-prod", wag.get("admin_root"))
-check("empty admin_root stays empty",
-      next(i for i in instances if i["name"] == "wfm-prod")["admin_root"] == "")
+# An instance whose runtime serves the API at / carries admin_root: "" — the
+# loader has to keep that as an empty string, because None would make
+# f"{base}{admin_root}/flows" read "None/flows". Which instances those are is
+# registry data and changes with the estate, so this asks the registry rather
+# than naming one: gor and jan are root-served today.
+rootless = [i for i in instances if i["admin_root"] == ""]
+check("at least one instance is root-served", rootless, str([i["name"] for i in rootless]))
+check("and an empty admin_root stays a string, not None",
+      all(isinstance(i["admin_root"], str) for i in instances))
 check("credential env naming", env_credentials("nodered-x-auth") is None)
 
 # A stale registry.json used to shadow registry.yml, so an instance that was

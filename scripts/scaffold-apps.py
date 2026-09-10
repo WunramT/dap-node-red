@@ -56,7 +56,11 @@ FROM docker.io/nodered/node-red:{version}
 # The path is repo-root relative because the buildah component builds with the
 # repository as the context and passes only --file. Build it by hand the same
 # way: docker build -f apps/{app}/Dockerfile .
-COPY apps/{app}/package.json /tmp/palette.json
+#
+# --chown because the base image's RUN steps are the node-red user, and /tmp is
+# sticky: a root-owned file there cannot be removed by that user, so the rm at
+# the end of the next step fails the build.
+COPY --chown=node-red:node-red apps/{app}/package.json /tmp/palette.json
 RUN set -eu; \\
     modules="$(node -p 'Object.entries(require(\"/tmp/palette.json\").dependencies||{{}}).map(([n,v])=>n+\"@\"+v).join(\" \")')"; \\
     if [ -n "$modules" ]; then \\
@@ -93,6 +97,16 @@ def node_red_version(host: str, service: str) -> str | None:
 
 
 def main() -> int:
+    # This wrote the twelve apps once, from the captured samples. Everything in
+    # apps/ has been edited since — flows through the editor, package.json
+    # through a palette change — and samples/ is a snapshot that does not move.
+    # So a rerun would silently replace committed work with the state of the
+    # capture, and the tell would be a huge diff nobody asked for.
+    force = "--force" in sys.argv[1:]
+    unknown = [a for a in sys.argv[1:] if a != "--force"]
+    if unknown:
+        sys.exit(f"unknown option(s): {' '.join(unknown)}. Only --force.")
+
     registry = yaml.safe_load((ROOT / "registry.yml").read_text(encoding="utf-8"))
     by_service = {
         (i["host"], i["compose_service"]): i
@@ -108,7 +122,7 @@ def main() -> int:
         "wag-svr-lin01": "5.0.1",
     }
 
-    written, no_palette, unmatched = [], [], []
+    written, no_palette, unmatched, kept = [], [], [], []
 
     for sample in sorted(SAMPLES.glob("*.flows.json")):
         host, _, service = sample.name[: -len(".flows.json")].partition("__")
@@ -121,6 +135,9 @@ def main() -> int:
         app.mkdir(parents=True, exist_ok=True)
 
         nodes = json.loads(sample.read_text(encoding="utf-8"))
+        if (app / "flows.json").exists() and not force:
+            kept.append(inst["app"])
+            continue
         (app / "flows.json").write_text(render(normalize(nodes)), encoding="utf-8")
 
         version = node_red_version(host, service) or FALLBACK_VERSION.get(host)
@@ -151,6 +168,11 @@ def main() -> int:
     for app, nodes, version, pal in written:
         print(f"{app:<14} {nodes:>6} {version:>9} {pal:>8}")
 
+    if kept:
+        print(f"\nLeft alone, because apps/<app>/ already exists: {', '.join(kept)}\n"
+              f"  Their flows have been edited since the capture in samples/, so "
+              f"rewriting them from it would undo that.\n"
+              f"  --force does it anyway, and the diff is on you to read.")
     if unmatched:
         print(f"\nNo registry entry, skipped: {', '.join(unmatched)}", file=sys.stderr)
     if no_palette:

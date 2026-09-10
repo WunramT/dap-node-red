@@ -167,19 +167,15 @@ The pipeline runs `deploy.py` on the target host, where every instance is at `ht
 
 | Instance | From a workstation |
 |---|---|
-| `wag-prod`, `wag-test` | `http://wag-svr-lin01` — nginx routes the admin root |
-| `cho-prod` | `http://cho-svr-lin01:1880` |
-| `cho-test` | `http://cho-svr-lin01:1881` |
-| `gor-prod` | `http://gor-svr-lin01:1881` |
-| `gor-test` | `http://gor-svr-lin01:1880` |
-| `jan-prod` | `http://jan-svr-lin01:1880` |
-| `jan-test` | `http://jan-svr-lin01:1881` |
-| `slu-test` | `http://slu-svr-lin02:1882` |
-| `wfm-prod` | `http://wfm-svr-lin01:1880` — nginx also serves it as `http://wfm-svr-lin01/node-red-prod`, but that prefix is the proxy's and is not `admin_root` |
-| `wfm-test` | `http://wfm-svr-lin01:1881` |
-| `srem-prod`, `srem-test`, `slu-prod` | no published port — run on the host |
+| all 14 | `http://<host>/node-red-prod` and `http://<host>/node-red-test` |
 
-On `gor` and `jan` the prod and test ports are the reverse of what the names suggest. The table is a snapshot; `collect-inventory.py` re-derives it, and only the host-side path is what the pipeline depends on.
+The proxy routes by path on every host, which is why `srem-prod`, `srem-test` and `slu-prod` — none of which publish a port — are reachable from a workstation at all now. `nr.local.example.json` carries the full list in that form.
+
+Where a port is published it still answers directly, and that is the shorter path when the proxy is what you are debugging: `cho` on 1880/1881, `jan` on 1880/1881, `gor` on **1881/1880** — prod and test reversed against what the names suggest — `slu-test` on 1882, `wfm-prod` on 1880 and `wfm-test` on 1881. `wag`, `srem` and `slu-prod` publish nothing.
+
+**The proxy path is not `admin_root`.** Both end up in the same request from a workstation, so it is easy to conclude they are the same value, and they are not: the proxy path is what the browser uses, `admin_root` is what the runtime serves on the container, and the deploy uses only the second. Where the two overlap the tools strip the duplicate and print a note; where they differ — `wfm-prod` is reached as `/node-red-prod` and serves at `/` — copying one into the other makes every Jenkins call `404`.
+
+Both lists are snapshots; `collect-inventory.py` re-derives them, and only the host-side path is what the pipeline depends on.
 
 To sweep several instances in one run, set the base per instance — `NODE_RED_BASE_URL_<INSTANCE>`, with `-` as `_` and upper-cased. A plain `NODE_RED_BASE_URL` still applies to anything without its own override:
 
