@@ -72,9 +72,10 @@
     "password": ""
   },
   "wfm-prod": {
-    "url": "http://wfm-svr-lin01/node-red-prod",
+    "url": "http://wfm-svr-lin01:1880",
     "user": "admin",
-    "password": ""
+    "password": "",
+    "_note": "the PORT until the cutover: /node-red-prod is the new, still empty container, and comparing Git against that reads as total drift. After the cutover this becomes http://wfm-svr-lin01/node-red-prod — wfm-prod-migration.md, phase C"
   },
   "wfm-test": {
     "url": "http://wfm-svr-lin01/node-red-test",
