@@ -1,24 +1,17 @@
 [
   {
-    "id": "b1f4c0a27d3e8a51",
+    "id": "e4259e10e4567da1",
     "type": "tab",
-    "label": "Pipeline-Test",
-    "info": "Startflow der Testinstanz. Beruehrt kein Fremdsystem: Inject wird\nmanuell ausgeloest, die Function rechnet nur, der Debug-Node schreibt in\ndie Sidebar. Zweck ist der Nachweis, dass ein Deploy aus Git hier ankommt.\n\nSobald das steht, kann dieser Tab durch echte Testflows ersetzt werden.",
-    "disabled": false
-  },
-  {
-    "id": "b07de59689637ef2",
-    "type": "tab",
-    "label": "Böse",
+    "label": "Flow 1",
     "info": "",
-    "disabled": false,
+    "disabled": true,
     "env": []
   },
   {
-    "id": "3c7a1e9b52d04f68",
+    "id": "7817b085abdbb568",
     "type": "inject",
-    "z": "b1f4c0a27d3e8a51",
-    "name": "manuell ausloesen",
+    "z": "e4259e10e4567da1",
+    "name": "",
     "crontab": "",
     "once": false,
     "onceDelay": 0.1,
@@ -27,107 +20,50 @@
     "props": [
       {
         "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
       }
     ],
     "repeat": "",
     "topic": "",
-    "x": 190,
-    "y": 120,
+    "x": 120,
+    "y": 280,
     "wires": [
       [
-        "8d2b6f04a1c93e7b"
+        "b04915900d2eb0e7"
       ]
     ]
   },
   {
-    "id": "5e0c8a3f7b21d946",
+    "id": "b04915900d2eb0e7",
     "type": "debug",
-    "z": "b1f4c0a27d3e8a51",
-    "name": "Ergebnis",
+    "z": "e4259e10e4567da1",
+    "name": "debug 2",
     "active": true,
-    "complete": "payload",
+    "complete": "true",
     "console": false,
     "statusType": "auto",
     "statusVal": "",
-    "targetType": "msg",
+    "targetType": "full",
     "tosidebar": true,
     "tostatus": false,
-    "x": 690,
-    "y": 120,
+    "x": 320,
+    "y": 280,
     "wires": []
   },
   {
-    "id": "8d2b6f04a1c93e7b",
-    "type": "function",
-    "z": "b1f4c0a27d3e8a51",
-    "name": "Deploy-Nachweis bauen",
-    "finalize": "",
-    "func": "// Kein Fremdsystem, keine Nebenwirkung — nur ein Beleg, dass dieser Flow\n// aus Git deployt wurde und laeuft.\nmsg.payload = {\n    instanz: \"wfm-test\",\n    quelle: \"git: apps/wfm-test/flows.json\",\n    ausgeloest: new Date(msg.payload).toISOString()\n};\nreturn msg;",
-    "initialize": "",
-    "libs": [],
-    "noerr": 0,
-    "outputs": 1,
-    "timeout": 0,
-    "x": 430,
-    "y": 120,
-    "wires": [
-      [
-        "5e0c8a3f7b21d946"
-      ]
-    ]
-  },
-  {
-    "id": "489203ea679202b3",
-    "type": "inject",
-    "z": "b07de59689637ef2",
+    "id": "d010032bb6fbc4e0",
+    "type": "OpcUa-Endpoint",
     "name": "",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "payload": "",
-    "payloadType": "date",
-    "props": [
-      {
-        "p": "payload"
-      },
-      {
-        "p": "topic",
-        "vt": "str"
-      }
-    ],
-    "repeat": "",
-    "topic": "",
-    "x": 260,
-    "y": 220,
-    "wires": [
-      []
-    ]
-  },
-  {
-    "id": "c78b7a9c2f9c4792",
-    "type": "inject",
-    "z": "b07de59689637ef2",
-    "name": "",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "payload": "",
-    "payloadType": "date",
-    "props": [
-      {
-        "p": "payload"
-      },
-      {
-        "p": "topic",
-        "vt": "str"
-      }
-    ],
-    "repeat": "",
-    "topic": "",
-    "x": 280,
-    "y": 140,
-    "wires": [
-      []
-    ]
+    "endpoint": "opc.tcp://10.65.33.2:4842",
+    "login": false,
+    "none": true,
+    "secmode": "None",
+    "secpol": "None",
+    "usercert": false,
+    "usercertificate": "",
+    "userprivatekey": ""
   }
 ]
