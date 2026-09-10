@@ -348,10 +348,6 @@ python3 scripts/drift-check.py --all --json inventory/drift.json --fail-on-drift
 
 Read-only: `GET /flows`, normalize, diff against Git, report. It never writes to an instance and offers no flag that would.
 
-Exit 0 when clean or behind, 1 when an instance is unreachable, and 3 only with `--fail-on-drift` — for a scheduled check that should go red. Without the flag drift is reported and the exit stays 0, because drift is information, not a failure.
-
-**`behind` and `drifted` are different findings.** A running flow that matches an earlier commit of its file is `behind`: Git moved on and the instance did not, which is the normal state between a commit and its deploy. It needs a deploy, not a decision, and it never fails `--fail-on-drift` because nobody bypassed anything. A running flow that matches no commit is `drifted`: it was edited in the browser, and that is the case decision 3 exists for — capture it.
-
-Telling the two apart needs the repository, so it only happens where a checkout is. On a site host both collapse into `drifted`, which claims less rather than guessing.
+Exit 0 when clean, 1 when an instance is unreachable, and 3 only with `--fail-on-drift` — for a scheduled check that should go red. Without the flag drift is reported and the exit stays 0, because drift is information, not a failure.
 
 An unreachable instance does not stop the sweep; it is one row in the report. `--json` writes the full report, diffs included, which is what the visibility page renders (decision 11).
