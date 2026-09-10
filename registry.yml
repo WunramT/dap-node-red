@@ -207,7 +207,7 @@ instances:
     compose_service: node-red-test
     compose_file: /home/administrator/Base_Container/docker-compose.yml
     app: wfm-test
-    admin_root: ""
+    admin_root: "/node-red-test"
     auth_credential_id: nodered-wfm-test-auth
     credential_secret_id: nodered-wfm-test-credsecret
     dns_search: [rah.polipol.intra, wag.polipol.intra]
