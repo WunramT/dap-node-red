@@ -1,64 +1,72 @@
-// Copy to nr.local.json and fill in. That file is gitignored.
-// A password left out is asked for at the prompt and is not stored.
-// Where each instance answers: docs/runbook.md, 'Reaching an instance from a workstation'.
 {
   "cho-prod": {
-    "url": "http://cho-svr-lin01:1880",
-    "user": "admin"
+    "url": "http://cho-svr-lin01/node-red-prod",
+    "user": "admin",
+    "password": ""
   },
   "cho-test": {
-    "url": "http://cho-svr-lin01:1881",
-    "user": "admin"
+    "url": "http://cho-svr-lin01/node-red-test",
+    "user": "admin",
+    "password": ""
   },
   "gor-prod": {
-    "url": "http://gor-svr-lin01:1881",
-    "user": "admin"
+    "url": "http://gor-svr-lin01/node-red-prod",
+    "user": "admin",
+    "password": ""
   },
   "gor-test": {
-    "url": "http://gor-svr-lin01:1880",
-    "user": "admin"
+    "url": "http://gor-svr-lin01/node-red-test",
+    "user": "admin",
+    "password": ""
   },
   "jan-prod": {
-    "url": "http://jan-svr-lin01:1880",
-    "user": "admin"
+    "url": "http://jan-svr-lin01/node-red-prod",
+    "user": "admin",
+    "password": ""
   },
   "jan-test": {
-    "url": "http://jan-svr-lin01:1881",
-    "user": "admin"
+    "url": "http://jan-svr-lin01/node-red-test",
+    "user": "admin",
+    "password": ""
   },
   "slu-prod": {
-    "url": "",
+    "url": "http://slu-svr-lin02/node-red-prod",
     "user": "admin",
-    "_note": "no published port \u2014 reachable only from its host"
+    "password": ""
   },
   "slu-test": {
-    "url": "http://slu-svr-lin02:1882",
-    "user": "admin"
+    "url": "http://slu-svr-lin02/node-red-test",
+    "user": "admin",
+    "password": ""
   },
   "srem-prod": {
-    "url": "",
+    "url": "http://srem-svr-lin01/node-red-prod",
     "user": "admin",
-    "_note": "no published port \u2014 reachable only from its host"
+    "password": ""
   },
   "srem-test": {
-    "url": "",
+    "url": "http://srem-svr-lin01/node-red-test",
     "user": "admin",
-    "_note": "no published port \u2014 reachable only from its host"
+    "password": ""
   },
   "wag-prod": {
-    "url": "http://wag-svr-lin01",
-    "user": "admin"
+    "url": "http://wag-svr-lin01/node-red-prod",
+    "user": "admin",
+    "password": ""
   },
   "wag-test": {
-    "url": "http://wag-svr-lin01",
-    "user": "admin"
+    "url": "http://wag-svr-lin01/node-red-test",
+    "user": "admin",
+    "password": ""
   },
   "wfm-prod": {
-    "url": "http://wfm-svr-lin01:1880",
-    "user": "admin"
+    "url": "http://wfm-svr-lin01/node-red-prod",
+    "user": "admin",
+    "password": ""
   },
   "wfm-test": {
-    "url": "http://wfm-svr-lin01:1881",
-    "user": "admin"
+    "url": "http://wfm-svr-lin01/node-red-test",
+    "user": "admin",
+    "password": ""
   }
 }
