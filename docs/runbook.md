@@ -396,6 +396,15 @@ Then in Jenkins: `INSTANCE=wag-prod`, `DRY_RUN=true` to see the diff the pipelin
 
 Step 1 is not optional. If the instance has drifted, your local edit is against a stale base and the deploy will hit a `409`.
 
+**The editor's port depends on where the container engine runs.** `nr.py edit`
+prints the address it published on. Loopback only reaches you when the daemon
+is on the machine you browse from; podman on Windows or macOS keeps it in a VM,
+and a dev container talks to the host's daemon, so there the port is published
+on every interface and the VM forwards it to your `localhost`. A bare
+`docker compose -f compose/editor.yml up` keeps the loopback default and, in
+those cases, publishes the port somewhere nothing can reach while Node-RED
+logs a clean start.
+
 Prefer `nr.py edit` over the bare compose call: it pins the editor to the Node-RED version that instance runs, which a plain `APP=... docker compose up` does not, and it finds the container engine — podman on a workstation, Docker on a server, or whatever `CONTAINER_ENGINE` names. A 5.x editor writes fields into the flow that a 4.0.x runtime does not know, in a file whose whole purpose is to deploy unchanged. For a flow that uses palette nodes, add `--baked` so the editor runs that app's own image and those nodes open as themselves instead of as "unknown" — that pulls from Harbor and needs a login there. Log in with the engine `nr.py` actually used, which it prints: on Windows `podman compose` hands the work to `docker-compose.exe` and points it at podman's own socket, so `Error response from daemon: unauthorized ... action: pull` is podman answering through its Docker-compatible API and `podman login` is what fixes it — the name of the compose binary in the message says nothing about which engine pulls. When the pull fails the editor never starts, and `nr.py` says so rather than reporting a copy-back; the app file is untouched.
 
 **The editor arrives with every tab disabled.** That is the protection, and it

@@ -279,6 +279,19 @@ def bump_palette_tag(inst: dict) -> tuple[str, str] | None:
     return old, new
 
 
+def editor_bind(compose: list[str], environ) -> str:
+    """The address to publish the editor's port on.
+
+    Loopback only reaches you when the daemon runs on this machine. podman on
+    Windows or macOS keeps it in a VM, and a dev container talks to the host's
+    daemon, so there the port has to go on every interface for the VM to
+    forward it out. Otherwise it is published somewhere nothing can reach and
+    the editor looks dead.
+    """
+    in_vm = compose[0] == "podman" or bool(environ.get("LOCAL_WORKSPACE_FOLDER"))
+    return "0.0.0.0" if in_vm else "127.0.0.1"
+
+
 def compose_cmd(instance: str) -> list[str]:
     """`docker compose` or `podman compose`, whichever this machine has.
 
@@ -326,6 +339,9 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
                      f"See open question 3 in docs/open-questions.md.")
         compose = compose_cmd(inst["name"])
         data, was, labels = stage_session(inst["app"])
+        env_bind = editor_bind(compose, os.environ)
+        in_vm = env_bind != "127.0.0.1"
+
         print(f"\nEditor for {inst['name']} -> {data}/ (a copy, not apps/{inst['app']}/)\n"
               f"Open http://localhost:1880 once it starts, then Ctrl-C to finish.\n"
               f"\n"
@@ -340,7 +356,7 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         # mount must name a host path. LOCAL_WORKSPACE_FOLDER is what the dev
         # container sets to that path; outside one it is unset and the compose
         # file falls back to its own relative path.
-        env = {**os.environ, "APP": inst["app"]}
+        env = {**os.environ, "APP": inst["app"], "EDITOR_BIND": env_bind}
         if os.environ.get("LOCAL_WORKSPACE_FOLDER"):
             env["REPO_ROOT"] = os.environ["LOCAL_WORKSPACE_FOLDER"]
 
@@ -366,7 +382,9 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
                 print(f"search domains: {', '.join(inst['dns_search'])}")
         print(f"editor image:   {env.get('EDITOR_IMAGE', 'nodered/node-red:' + version)}")
         print(f"editor network: {env.get('EDITOR_NETWORK', 'bridged')}"
-              f"{'  (no route out)' if isolated else '  (databases and brokers reachable)'}\n")
+              f"{'  (no route out)' if isolated else '  (databases and brokers reachable)'}")
+        print(f"editor port:    {env_bind}:1880"
+              f"{'  (the engine runs in a VM, so loopback alone would not reach you)' if in_vm else ''}\n")
         staged = session_digest(inst["app"])
         code = None
         try:
