@@ -314,6 +314,16 @@ this container, so it should — but a dry run is where you find out for free.
 
 ## Phase D — the cutover
 
+**Done, 2026-09-10.** The old `node-red` is stopped and `wfm-prod` runs its 19
+nodes out of `node-red-prod`, deployed by the pipeline against the reviewed
+`rev`. Phase E — taking the old service out of the compose file — is still
+open, and until it is, a `docker compose up -d` on that file can start a second
+publisher.
+
+From here `wfm-prod` is reached at `http://wfm-svr-lin01/node-red-prod`, which
+is what `nr.local.example.json` now carries; port 1880 was the old container
+and no longer answers.
+
 Both runtimes hold the same publishing flow the moment the deploy lands, and
 `Extruder abfrage` injects **every 5 seconds** into `mqtt out` on
 `dpn-svr-iot:8883`. Two publishers on one topic is the failure this whole
