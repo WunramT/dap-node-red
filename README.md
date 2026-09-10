@@ -10,6 +10,17 @@ container recreate.
 A `*-prod` instance runs the real thing. Its `*-test` twin is a workbench,
 empty unless something is being tested. One tab moves between them at a time.
 
+Not sure which of those you are doing? Let it ask:
+
+```bash
+python3 scripts/nr.py            # pick a task, then walk it step by step
+python3 scripts/guide.py --list  # the tasks, without picking one
+```
+
+It prints the whole loop first, fills in your instance and tab names, and asks
+before every command. Commits, pushes and Jenkins runs stay yours: the guide
+tells you to make them, it does not make them for you.
+
 ## Change a tab prod already runs
 
 ```bash
@@ -79,7 +90,8 @@ container.
 
 | | |
 |---|---|
-| `nr.py` | Front door. Asks which instance, which action. |
+| `nr.py` | Front door. Pick a task and be walked through it, or pick a single action. |
+| `guide.py --list` | The five task loops. `--print <task>` shows one without running anything. |
 | `nr.py status` | Every instance: does it still match Git? |
 | `nr.py check <inst>` | Same for one, with the diff. |
 | `nr.py edit <inst>` | Local editor on a copy. `--baked` for palette nodes, `--isolated` for no network. |
@@ -93,8 +105,10 @@ container.
 | `gen-image-pipeline.py` | Regenerate the build jobs after adding an instance. |
 | `collect-inventory.py` | Re-read the hosts over SSH. Reports that a secret exists, never its value. |
 
-Setup once: `pip install -r scripts/requirements.txt`, then copy
-`nr.local.example.json` to `nr.local.json` and fill in the URLs. A blank
+Setup. Open the repo in the dev container and `.devcontainer/setup.sh` does it
+for you: dependencies, `nr.local.json` from the example, the registry check,
+every suite. Without the container, run that script yourself. Either way, fill
+in the URLs in `nr.local.json` before `check`, `capture` or `deploy`. A blank
 password is prompted for and not stored.
 
 ## Where things live

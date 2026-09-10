@@ -38,7 +38,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import guide  # noqa: E402
 import nodered  # noqa: E402
+from guide import choose  # noqa: E402
 from normalize import normalize, render  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +48,7 @@ LOCAL = ROOT / "nr.local.json"
 PY = sys.executable
 
 ACTIONS = {
+    "guide":   "walk me through a whole task, step by step",
     "status":  "every instance at once: does it still match Git?",
     "check":   "one instance: does it still match Git?",
     "edit":    "start the local editor on this app (isolated, no live nodes)",
@@ -423,22 +426,19 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
     return code
 
 
-def choose(prompt: str, options: list[tuple[str, str]]) -> str:
-    print(f"\n{prompt}")
-    for n, (key, label) in enumerate(options, 1):
-        print(f"  {n:2}  {key:<12} {label}")
-    while True:
-        raw = input("\n> ").strip()
-        if raw.isdigit() and 1 <= int(raw) <= len(options):
-            return options[int(raw) - 1][0]
-        if raw in {k for k, _ in options}:
-            return raw
-        print("Pick a number from the list, or type the name.")
-
-
 def main() -> int:
     cfg = local_config()
     all_instances = nodered.instances()
+
+    if {"--help", "-h"} & set(sys.argv[1:]):
+        print(__doc__.strip().split("\n\n")[0])
+        print("\nactions")
+        for name, what in ACTIONS.items():
+            print(f"  {name:<10} {what}")
+        print("\nguided tasks (nr.py guide <task>)")
+        for key, task in guide.TASKS.items():
+            print(f"  {key:<12} {task['title']}")
+        return 0
 
     argv = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
@@ -448,10 +448,19 @@ def main() -> int:
                  f"Understood: {', '.join(sorted(known))}, and only for edit.")
 
     action = argv[0] if argv else None
+    if action == "guide":
+        return guide.walk(argv[1] if len(argv) > 1 else choose(
+            "What are you here to do?",
+            [(key, task["title"]) for key, task in guide.TASKS.items()]))
     if action and action not in ACTIONS:
         sys.exit(f"unknown action '{action}'. One of: {', '.join(ACTIONS)}")
     if not action:
-        action = choose("What do you want to do?", list(ACTIONS.items()))
+        action = choose("What do you want to do?", [("guide", ACTIONS["guide"])]
+                        + [(k, v) for k, v in ACTIONS.items() if k != "guide"])
+        if action == "guide":
+            return guide.walk(choose(
+                "What are you here to do?",
+                [(key, task["title"]) for key, task in guide.TASKS.items()]))
 
     if action == "status":
         return act(action, None, cfg)
@@ -492,6 +501,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except KeyboardInterrupt:
+    except (EOFError, KeyboardInterrupt):
+        # Ctrl-C and Ctrl-D both mean "not now", and neither is a crash.
         print()
         sys.exit(130)

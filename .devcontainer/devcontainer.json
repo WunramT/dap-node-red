@@ -19,6 +19,9 @@
   "postCreateCommand": ".devcontainer/setup.sh",
   "waitFor": "postCreateCommand",
 
+  // Runs on every attach, so a new terminal starts by saying what to type.
+  "postAttachCommand": "python3 scripts/guide.py --list",
+
   "forwardPorts": [1880],
   "portsAttributes": {
     "1880": { "label": "Node-RED editor", "onAutoForward": "silent" }
