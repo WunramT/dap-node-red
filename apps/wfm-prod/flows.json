@@ -142,24 +142,6 @@
     ]
   },
   {
-    "id": "73f66fe5bb410727",
-    "type": "OpcUa-Browser",
-    "z": "e4259e10e4567da1",
-    "name": "",
-    "datatype": "",
-    "endpoint": "d010032bb6fbc4e0",
-    "item": "",
-    "items": [],
-    "topic": "ns=2;s=Model",
-    "x": 370,
-    "y": 220,
-    "wires": [
-      [
-        "ee4c972c7a3196e4"
-      ]
-    ]
-  },
-  {
     "id": "7817b085abdbb568",
     "type": "inject",
     "z": "e4259e10e4567da1",
@@ -184,28 +166,7 @@
     "y": 280,
     "wires": [
       [
-        "73f66fe5bb410727",
-        "abe3b94b04300f92"
-      ]
-    ]
-  },
-  {
-    "id": "abe3b94b04300f92",
-    "type": "function",
-    "z": "e4259e10e4567da1",
-    "name": "Prepare Messages",
-    "finalize": "",
-    "func": "// Define all NodeIDs from configuration\nconst nodeIds = [\n    'Status_Hmi',\n    'Material_height'\n];\n\nconst messages = [];\nconst identifierPrefix = 'ns=2;s=Model.';\n\n// Erste Message: clearitems um die liste im CLient zu leeren. Leert sich nicht von selbst! Man könnte die liste einmal füllen und dann einfach immer abfragen.\nmessages.push({\n    topic: 'clearitems',\n    payload: ''\n});\n\n// Alle NodeIDs hinzufügen\nfor (let index = 0; index < nodeIds.length; index++) {\n    messages.push({\n        topic: identifierPrefix + nodeIds[index],\n        payload: 'Integer'\n    });\n}\n\n// Letzte Message: readmultiple. Nur diese message ohne clear auch möglich\nmessages.push({\n    topic: 'readmultiple',\n    payload: 'ALL'\n});\n\n// Für Split Node\nmsg.payload = messages;\nreturn [messages];",
-    "initialize": "",
-    "libs": [],
-    "noerr": 0,
-    "outputs": 1,
-    "timeout": 0,
-    "x": 190,
-    "y": 480,
-    "wires": [
-      [
-        "e042d933d341783c"
+        "b04915900d2eb0e7"
       ]
     ]
   },
@@ -222,60 +183,8 @@
     "targetType": "full",
     "tosidebar": true,
     "tostatus": false,
-    "x": 610,
-    "y": 320,
-    "wires": []
-  },
-  {
-    "id": "e042d933d341783c",
-    "type": "OpcUa-Client",
-    "z": "e4259e10e4567da1",
-    "name": "",
-    "action": "readmultiple",
-    "applicationName": "",
-    "applicationUri": "",
-    "certificate": "n",
-    "deadbandtype": "a",
-    "deadbandvalue": 1,
-    "endpoint": "d010032bb6fbc4e0",
-    "keepsessionalive": false,
-    "localfile": "",
-    "localkeyfile": "",
-    "maxChunkCount": 1,
-    "maxMessageSize": 8192,
-    "receiveBufferSize": 8192,
-    "securitymode": "None",
-    "securitypolicy": "None",
-    "sendBufferSize": 8192,
-    "setstatusandtime": false,
-    "time": 10,
-    "timeUnit": "s",
-    "useTransport": false,
-    "x": 380,
-    "y": 340,
-    "wires": [
-      [
-        "b04915900d2eb0e7"
-      ],
-      [],
-      []
-    ]
-  },
-  {
-    "id": "ee4c972c7a3196e4",
-    "type": "debug",
-    "z": "e4259e10e4567da1",
-    "name": "debug 1",
-    "active": true,
-    "complete": "true",
-    "console": false,
-    "statusType": "auto",
-    "statusVal": "",
-    "targetType": "full",
-    "tosidebar": true,
-    "tostatus": false,
-    "x": 660,
-    "y": 220,
+    "x": 320,
+    "y": 280,
     "wires": []
   },
   {

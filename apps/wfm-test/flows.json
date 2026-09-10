@@ -1,59 +1,5 @@
 [
   {
-    "id": "e4259e10e4567da1",
-    "type": "tab",
-    "label": "Flow 1",
-    "info": "",
-    "disabled": true,
-    "env": []
-  },
-  {
-    "id": "7817b085abdbb568",
-    "type": "inject",
-    "z": "e4259e10e4567da1",
-    "name": "",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "payload": "",
-    "payloadType": "date",
-    "props": [
-      {
-        "p": "payload"
-      },
-      {
-        "p": "topic",
-        "vt": "str"
-      }
-    ],
-    "repeat": "",
-    "topic": "",
-    "x": 120,
-    "y": 280,
-    "wires": [
-      [
-        "b04915900d2eb0e7"
-      ]
-    ]
-  },
-  {
-    "id": "b04915900d2eb0e7",
-    "type": "debug",
-    "z": "e4259e10e4567da1",
-    "name": "debug 2",
-    "active": true,
-    "complete": "true",
-    "console": false,
-    "statusType": "auto",
-    "statusVal": "",
-    "targetType": "full",
-    "tosidebar": true,
-    "tostatus": false,
-    "x": 320,
-    "y": 280,
-    "wires": []
-  },
-  {
     "id": "d010032bb6fbc4e0",
     "type": "OpcUa-Endpoint",
     "name": "",
