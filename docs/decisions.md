@@ -102,3 +102,51 @@ Node-RED's own `${ENV}` substitution still works at runtime for whole property v
 
 If instances ever do share an app, the Jinja2 pass comes back — on a copy, in CI, for composite strings only. Until then it would be a moving part with no job.
 
+## 15. A test instance is a workbench, not a copy of prod — Closed
+
+`*-test` holds nothing by default. Work starts by copying the tab in question
+onto it, and ends by moving that tab to `*-prod`. `scripts/promote.py` does
+both; `docs/runbook.md` has the two loops.
+
+The alternative was the obvious one: keep test as a standing mirror of prod, so
+a change can be tried against a full copy. It has only two states and both are
+worse.
+
+- **Mirror running.** There are no test PLCs and no test extruder. Two runtimes
+  would poll the same OPC UA endpoints and publish the same messages to the same
+  broker. That is not a test environment, it is production twice, and the only
+  symptom is that the data arrives twice.
+- **Mirror disabled.** Then it is inert, and it rots: prod moves on, the copy
+  does not. Before working on a tab you would refresh it from prod anyway — so
+  the mirror buys nothing, while leaving a large stale artifact that reads like
+  the truth.
+
+The measured estate already worked this way, which is what settles it: `cho-test`
+has 6 nodes against prod's 68, `wag-test` 222 against prod's 15, `srem-test` 79
+against prod's 205. These were never staging copies. They are workbenches with
+leftovers, and `wag-test` at 222 nodes shows what happens when nobody clears one.
+
+Two consequences worth naming:
+
+- **Drift stays meaningful.** An empty workbench is `clean`; one in use is
+  `drifted`, which now reads as "someone is working there". Under a shared app
+  the instance not yet promoted to would report drift permanently, and the
+  visibility page from decision 11 would be mostly false alarms.
+- **A tab is not self-contained.** `link` nodes cross tabs, subflows are shared,
+  and this estate uses both — `srem-prod` has 8 link nodes and 18 subflow
+  instances. So promotion moves a dependency closure, and reports a link whose
+  partner stays behind. Testing one tab alone still does not test the whole
+  instance, and nothing here pretends otherwise.
+
+A promoted tab's state follows the direction of the promotion, not the source:
+onto the workbench it arrives disabled, into prod it arrives enabled. A prod tab
+is running when you take it, and a copy that keeps running would publish the
+same messages from a second runtime — the failure that has no symptom other
+than duplicated data. Nothing arrives stopped in production either, which would
+be a silent outage.
+
+This narrows decision 14 rather than reopening it: two instances still never
+share an `apps/` directory, so there is still nothing to render. Config nodes
+carry the environment instead, one copy per app, and promotion never overwrites
+an existing one — which is what keeps a workbench's broker out of prod, without
+a substitution layer.

@@ -41,6 +41,8 @@ instances:
 
 `app: null` is normal, not a gap. Most instances are one-offs; only instances that genuinely share logic point at the same `apps/` directory. The schema does not model app→{dev,prod} pairs, because the measured `wag-svr-lin01` pair is two unrelated applications.
 
+That holds under decision 15 too: a `*-test` instance is a workbench with its own app, not a second view of prod's. What moves between the two is one tab at a time, through `scripts/promote.py`.
+
 ## Variable resolution
 
 `global_variables`, then `variables` on top. The merged map becomes the container's environment.

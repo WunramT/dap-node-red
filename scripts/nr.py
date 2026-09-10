@@ -9,6 +9,8 @@
     python3 scripts/nr.py edit     srem-test --isolated  # editor with no way out
     python3 scripts/nr.py capture  wag-prod
     python3 scripts/nr.py deploy   wag-prod    # dry run; it never deploys for real
+    python3 scripts/nr.py promote  wfm-prod wfm-test "Extruder abfrage" --copy
+    python3 scripts/nr.py promote  wfm-test wfm-prod "Extruder abfrage" --move
 
 This exists so the instance list lives in exactly one place. A menu with the
 thirteen names typed into it would be a second copy of `registry.yml`, and the
@@ -44,6 +46,7 @@ ACTIONS = {
     "edit":    "start the local editor on this app (isolated, no live nodes)",
     "capture": "read the running flow back into apps/, to commit it",
     "deploy":  "show what a deploy would change; never deploys for real",
+    "promote": "move one tab between two instances' apps, with its dependencies",
 }
 
 
@@ -132,6 +135,27 @@ def stage_session(app: str) -> tuple[str, dict[str, bool], list[str]]:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "flows.json").write_text(json.dumps(flows, indent=2) + "\n", encoding="utf-8")
     return f".editor-session/{app}", was, labels
+
+
+def stage_dns(app: str, search: list[str]) -> str | None:
+    """A compose override carrying the instance's search domains.
+
+    Flows address their targets the way their own host resolves them, and some
+    do it unqualified — wfm-prod's broker is plain `dpn-svr-iot`. A normal
+    network is not enough for that: without the instance's dns_search the name
+    does not resolve, and the node goes red for a reason that looks like the
+    broker being down.
+
+    They differ per instance and compose cannot interpolate a list, so this is
+    written next to the staged flow rather than parameterised in editor.yml.
+    """
+    if not search:
+        return None
+    body = ["services:", "  editor:", "    dns_search:"]
+    body += [f"      - {domain}" for domain in search]
+    path = SESSION / app / "dns.yml"
+    path.write_text("\n".join(body) + "\n", encoding="utf-8")
+    return f".editor-session/{app}/dns.yml"
 
 
 def merge_session(app: str, was: dict[str, bool]) -> list[str]:
@@ -253,13 +277,20 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
             # rather than as "unknown". Needs a docker login to Harbor.
             env["EDITOR_IMAGE"] = inst["image_tag"]
         env["EDITOR_DATA"] = data
+        files = ["-f", "compose/editor.yml"]
         if isolated:
             env["EDITOR_NETWORK"] = "isolated"
+        else:
+            # Pointless with no gateway, so only for the networked default.
+            override = stage_dns(inst["app"], inst.get("dns_search") or [])
+            if override:
+                files += ["-f", override]
+                print(f"search domains: {', '.join(inst['dns_search'])}")
         print(f"editor image:   {env.get('EDITOR_IMAGE', 'nodered/node-red:' + version)}")
         print(f"editor network: {env.get('EDITOR_NETWORK', 'bridged')}"
               f"{'  (no route out)' if isolated else '  (databases and brokers reachable)'}\n")
         try:
-            return run([*compose, "-f", "compose/editor.yml", "up"], env)
+            return run([*compose, *files, "up"], env)
         finally:
             # Also on Ctrl-C, which is the normal way to end an editor session.
             added = merge_session(inst["app"], was)
@@ -301,7 +332,7 @@ def main() -> int:
 
     argv = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
-    known = {"--baked", "--isolated"}
+    known = {"--baked", "--isolated", "--copy", "--move", "--dry-run"}
     if flags - known:
         sys.exit(f"unknown option(s): {', '.join(sorted(flags - known))}. "
                  f"Understood: {', '.join(sorted(known))}, and only for edit.")
@@ -314,6 +345,27 @@ def main() -> int:
 
     if action == "status":
         return act(action, None, cfg)
+
+    if action == "promote":
+        # Two instances and a tab, so the instance picker does not fit. The
+        # instance names are the vocabulary everywhere else, so they are the
+        # vocabulary here too, and this translates them to app directories.
+        if len(argv) < 4:
+            sys.exit("usage: nr.py promote <from-instance> <to-instance> <tab> "
+                     "--copy|--move [--dry-run]\n"
+                     "  --copy for prod -> workbench, --move for workbench -> prod.\n"
+                     "  See docs/runbook.md, 'Changing a flow'.")
+        apps = {}
+        for name in argv[1:3]:
+            inst = next((i for i in all_instances if i["name"] == name), None)
+            if inst is None:
+                sys.exit(f"no instance named {name} in {registry_source()}")
+            if not inst.get("app"):
+                sys.exit(f"{name} has no app of its own, so there is nothing to promote")
+            apps[name] = inst["app"]
+        return run([PY, "scripts/promote.py",
+                    "--from", apps[argv[1]], "--to", apps[argv[2]], "--tab", argv[3],
+                    *sorted(flags & {"--copy", "--move", "--dry-run"})])
 
     name = argv[1] if len(argv) > 1 else None
     if not name:

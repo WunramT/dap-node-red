@@ -270,6 +270,64 @@ git diff && git commit -am "flows(wag-test): ..." && git push
 
 There is no separate procedure. A flow file holds every tab of that instance, so a new flow is a new tab inside `apps/<app>/flows.json`. Use route A: add the tab in the local editor, deploy the whole file.
 
+### Promoting a change between a workbench and prod
+
+A `*-test` instance is a workbench, empty by default (decision 15). These are
+the two loops, and both end with a deploy of **both** instances.
+
+**Changing a tab that prod already runs**
+
+```bash
+python3 scripts/nr.py check wfm-prod                                  # 1. is prod still Git's?
+python3 scripts/nr.py promote wfm-prod wfm-test "Extruder abfrage" --copy
+git commit -am "promote(wfm-test): bring Extruder abfrage onto the workbench"
+python3 scripts/nr.py edit wfm-test                                   # 2. build it
+git commit -am "flows(wfm-test): ..."                                 #    then deploy wfm-test
+                                                                      # 3. try it on the instance
+python3 scripts/nr.py promote wfm-test wfm-prod "Extruder abfrage" --move
+git commit -am "promote(wfm-prod): ship Extruder abfrage"
+                                                                      # 4. deploy wfm-test, then wfm-prod
+```
+
+Step 1 is not decoration: promoting from a prod that has drifted puts a stale
+tab on the workbench, and the browser edit it hides surfaces as a `409` at the
+end instead of as a `capture` at the start.
+
+**A tab that does not exist yet** skips the first promotion — build it on the
+workbench, deploy there, then `--move` it to prod.
+
+**`--copy` and `--move` are not interchangeable, and there is no default.**
+`--copy` for prod → workbench, because prod has to keep running the tab while
+you change it. `--move` for workbench → prod, because a tab left enabled on the
+workbench runs alongside prod: two runtimes on the same PLC and the same topic,
+and the only symptom is data arriving twice.
+
+**The arriving state follows the direction.** A `--copy` lands **disabled** on
+the workbench, so nothing starts by itself and becomes a second publisher on a
+live topic; enable it there when you want it to run. A `--move` lands
+**enabled** in prod, because that is where it is meant to run — and if prod had
+that tab disabled before, the report says so, since re-enabling it silently
+would be a change nobody asked for.
+
+Enabling on the workbench is a change to that instance, so it shows up as
+drift until someone captures it. That is correct: the workbench's own state is
+its own business, and the tab you ship is the one you validated.
+
+**Deploy order for a `--move`: the source first.** The tab stops on the
+workbench before it starts in prod, so the two never overlap. For a changed tab
+prod serves the old version until the new one lands.
+
+**Read the report.** Where the destination lacks a config node the tab needs, it
+is created with the *source's* values and named in the output. That is the one
+manual gate in the loop: set it for its own instance before deploying, or the
+workbench publishes into prod's broker. An existing config node is never
+overwritten, which is how each side keeps its own broker across promotions.
+
+**The workbench must not write outward.** Reading an OPC UA server twice is
+tolerable; publishing twice is not. Repoint the workbench's `mqtt out` target —
+in `apps/<app>-test/flows.json`, where it stays, because promotion leaves
+destination config nodes alone.
+
 ### Which route for which instance
 
 | | Route |
