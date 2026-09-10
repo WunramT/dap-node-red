@@ -298,6 +298,10 @@ one still runs the flow, so a real deploy would start a second publisher on
 `dpn-svr-iot:8883` instead of replacing the first. The dry run is safe, and is
 the whole point of this phase.
 
+**Done, 2026-09-10: `362 changed lines`.** Which is the 19 nodes against an
+empty instance, and it took four attempts at phase B to get there — the two
+key locations were the last of them.
+
 Then Jenkins: `INSTANCE=wfm-prod`, `DRY_RUN=true`, `EXPECT_REV` empty.
 
 Expect a **large diff** — `-[]` against 19 nodes — because the target is empty
