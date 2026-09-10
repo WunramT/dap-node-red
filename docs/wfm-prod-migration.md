@@ -168,10 +168,26 @@ docker compose -f /home/administrator/Base_Container/docker-compose.yml up -d no
 docker logs node-red-prod --tail 40      # no "Failed to decrypt credentials"
 ```
 
+What to look for is a fresh startup banner — `Welcome to Node-RED`,
+`Node-RED version: v4.0.9`, `Settings file : /data/settings.js`, ending in
+`Started flows` — and **no** `Error loading credentials` or `Failed to decrypt
+credentials`. That line is the whole test of B2 and B3: a wrong key does not
+fail the start, it logs once and carries on with nothing.
+
+If the log ends at `Stopping flows` with nothing after it, the container is
+still down — the `up -d` did not run, or `settings.js` has a syntax error from
+the edit in B3, which shows as a container that exits instead of starting.
+`docker ps --filter name=node-red-prod` says which.
+
 The instance is still empty at this point, so the credentials it now holds
 belong to no node yet. That is expected: the deploy in phase D brings the nodes
 that claim them, matched by node id — which is why nothing in this repository
 ever rewrites an id.
+
+**Do not press Deploy in the empty editor between B5 and phase D.** Node-RED
+drops credentials that belong to no node when it *saves*, so deploying an empty
+flow is the one action that would discard what B2 just carried over. Keep the
+window short and let the pipeline be the thing that writes.
 
 ## Phase C — repoint the registry and look
 
