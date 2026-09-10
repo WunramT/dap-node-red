@@ -92,7 +92,7 @@ There is no render step between the `GET` and the `POST`: no app is shared, so n
 
 `registry.yml` is YAML and PyYAML may be absent on a host, so CI emits `registry.json` and Jenkins ships it alongside the script. Hand-parsing YAML on the host was the alternative, and a parser wrong in one edge case deploys the wrong flow to the wrong instance.
 
-`admin_root` is per-instance and was probed against the container rather than parsed: 8 instances answer on `/node-red-prod` or `/node-red-test`, and `gor-prod`, `gor-test`, `jan-prod`, `jan-test` and `wfm-prod` have no admin root at all and answer on plain `/flows`. In `registry.yml` those carry `admin_root: ""`. `wfm-test` did not exist when this was probed and turned out to serve under a path of its own.
+`admin_root` is per-instance and was probed against the container rather than parsed: 8 instances answer on `/node-red-prod` or `/node-red-test`, and `gor-prod`, `gor-test`, `jan-prod`, `jan-test` and `wfm-prod` have no admin root at all and answer on plain `/flows`. In `registry.yml` those carry `admin_root: ""`. `wfm-test` did not exist when this was probed; its `settings.js` carries `httpAdminRoot: '/node-red-test'`, so it is the fourteenth and serves under a path of its own.
 
 Probing against the container is not a detail: on `wfm-svr-lin01` nginx serves `wfm-prod` as `http://wfm-svr-lin01/node-red-prod` and strips that prefix, so the browser URL and the runtime's own root disagree. The deploy runs on the host and calls the container, so `admin_root` follows the runtime.
 

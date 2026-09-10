@@ -22,7 +22,8 @@ rather than working around it.
 | tab `Extruder abfrage` | `inject` every **5 s**, `once: true` → OPC UA read → `function` → **`mqtt out` to `dpn-svr-iot:8883`** |
 | tab `Flow 1` | manual `inject` → OPC UA browse and read → `debug` only, no outward write |
 | config nodes | 3 × `OpcUa-Endpoint` (one with `login: true`), `mqtt-broker`, `tls-config` |
-| `adminAuth` | **off** — the editor and Admin API are open to anyone who can reach the host on 1880 |
+| `adminAuth` | **off** — `//adminAuth: {` is still commented out, and `GET /flows` on the container answers `200` unauthenticated. Anyone who reaches the host on 1880 can read and write the flow |
+| `httpAdminRoot` | commented out, so the runtime serves at `/`. `admin_root: ""`. nginx serves it as `http://wfm-svr-lin01/node-red-prod` and strips that prefix |
 | `credentialSecret` | unset, so Node-RED generated one; the only copy is `/data/.config.runtime.json` |
 | target image | `harbor.aks-infra.polipol-service.de/dap-node-red/wfm-prod:4.0.9-1` — same Node-RED version it already runs, with `node-red-contrib-opcua ~0.2.339` baked in |
 
@@ -141,6 +142,14 @@ version is harmless; a different version means the image is not the palette
 truth for this instance. Move it aside only with the backup from A2 in hand.
 
 ## Phase C — the pipeline's first look at prod
+
+**Phase B is not optional for this instance, and not for the reason it looks
+like.** The Jenkins credential `nodered-wfm-prod-auth` already exists, so
+`deploy.py` finds a login in its environment and calls `POST /auth/token` on
+every run — and while `adminAuth` is commented out, Node-RED does not serve
+that route, so every run 404s no matter what `admin_root` says. The instance
+cannot be deployed until its `adminAuth` is on. Decision 13 asked for that
+anyway; this only fixes the order.
 
 Jenkins, `INSTANCE=wfm-prod`, `DRY_RUN=true`, `EXPECT_REV` empty.
 
