@@ -74,18 +74,19 @@ def instances() -> list[dict]:
     )
 
 
-def loaded_from() -> str:
-    """Which file the instance list came from, for an error a reader can act on."""
-    return _loaded_from.name if _loaded_from else "the registry"
-
-
 def find(instance: str) -> dict:
-    """One instance by name, or exit naming the ones that exist."""
+    """One instance by name, or exit naming the ones that exist.
+
+    The error names the file the list actually came from: a stale registry.json
+    shadowing the registry used to report an instance as absent that was
+    plainly there.
+    """
     known = instances()
     for inst in known:
         if inst["name"] == instance:
             return inst
-    raise SystemExit(f"no instance named {instance} in {loaded_from()}.\n"
+    raise SystemExit(f"no instance named {instance} in "
+                     f"{_loaded_from.name if _loaded_from else 'the registry'}.\n"
                      f"  Known: {', '.join(i['name'] for i in known)}")
 
 
@@ -251,11 +252,6 @@ def tag_short(tag: str) -> str:
 def tag_version(tag: str) -> str:
     """The Node-RED version, which is what an editor has to match."""
     return tag.rsplit(":", 1)[1].rsplit("-", 1)[0]
-
-
-def tag_build(tag: str) -> str:
-    """The palette build, the part that goes up when the palette changes."""
-    return tag.rsplit("-", 1)[1]
 
 
 def set_image_tag(instance: str, tag: str) -> None:
