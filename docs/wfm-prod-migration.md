@@ -146,31 +146,57 @@ same way an absent one does, and a directory it cannot write kills the runtime
 on the first save (`runbook.md`, "A new instance's /data must belong to the
 container user").
 
-**B3. Pin the new container's `credentialSecret` to the old key** in its
-`settings.js`. It arrives with a key of its own, and that key has no
-credentials behind it, so replacing it costs nothing — while getting it wrong
-costs the OPC UA login and the MQTT client certificate.
+**B3. Two places hold a key, and both have to name the old one.**
 
-Do the edit with a script rather than by hand. The key is 64 hex characters
-that mean nothing to a human eye, so a pasted one is unverifiable, and this way
-it never appears on a screen, in a shell history, or in `ps`:
+- `settings.js` → `credentialSecret`: the key to use **from now on**.
+- `/data/.config.runtime.json` → `_credentialSecret`: the key the
+  `flows_cred.json` **on disk is actually encrypted with**. Node-RED writes it
+  there itself when it generates one.
+
+When the two differ, Node-RED reads with the runtime one and re-encrypts with
+the settings one — that is how changing a `credentialSecret` is meant to work.
+Which means setting only `settings.js` leaves it decrypting the file we copied
+in B2 with a key that never encrypted it, and the result is the binary rubbish
+in the diagnosis below.
+
+The new container generated a key of its own on first start, so it has both.
+Point both at the old instance's key, with the container stopped:
 
 ```bash
 sudo python3 - <<'EOF'
 import hashlib, json, pathlib, re
-old = json.load(open('/home/administrator/Base_Container/node-red/data/.config.runtime.json'))['_credentialSecret']
-p = pathlib.Path('/home/administrator/Base_Container/node-red-prod/data/settings.js')
-s = p.read_text()
-s, n = re.subn(r'(credentialSecret:\s*")[^"]*(")', lambda m: m.group(1) + old + m.group(2), s, count=1)
-assert n == 1, "no active credentialSecret line to replace — is it still commented out?"
-p.write_text(s)
-print("fingerprint now:", hashlib.sha256(old.encode()).hexdigest()[:8])
+OLD = pathlib.Path('/home/administrator/Base_Container/node-red/data')
+NEW = pathlib.Path('/home/administrator/Base_Container/node-red-prod/data')
+fp = lambda v: hashlib.sha256(v.encode()).hexdigest()[:8]
+
+key = json.loads((OLD / '.config.runtime.json').read_text())['_credentialSecret']
+
+s = (NEW / 'settings.js').read_text()
+s, n = re.subn(r'(credentialSecret:\s*")[^"]*(")', lambda m: m.group(1) + key + m.group(2), s, count=1)
+assert n == 1, 'no active credentialSecret line in the new settings.js'
+(NEW / 'settings.js').write_text(s)
+
+rt_path = NEW / '.config.runtime.json'
+rt = json.loads(rt_path.read_text()) if rt_path.exists() else {}
+had = rt.get('_credentialSecret')
+rt['_credentialSecret'] = key
+rt_path.write_text(json.dumps(rt))
+
+print('settings.js  ->', fp(key))
+print('runtime json ->', fp(key), '(was ' + (fp(had) if had else 'absent') + ')')
 EOF
+sudo chown 1004:1004 /home/administrator/Base_Container/node-red-prod/data/.config.runtime.json
 ```
 
-The fingerprint it prints has to match the old instance's generated key — the
-same eight characters the diagnosis below computes. That is the check, and it
-gives away nothing.
+Both printed fingerprints have to equal the old instance's — the same eight
+characters the diagnosis below computes. The key itself never reaches a screen,
+a shell history or `ps`, which is why this is a script and not a paste: 64 hex
+characters are unverifiable by eye, and the first attempt at this step failed
+exactly there.
+
+Setting both to the same value also means no re-encryption happens, so
+`flows_cred.json` stays byte-for-byte the file B2 copied. The Jenkins
+credential `nodered-wfm-prod-credsecret` holds that same key.
 
 A mismatch does not error at startup. It logs one warning and carries on with
 no credentials at all.
