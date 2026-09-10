@@ -42,6 +42,12 @@ publishes nothing.
 
 ## Phase A — read only
 
+**A1 is done: `clean · 19 nodes`, 2026-09-10.** The old instance and Git agree,
+which is what the rest of this document assumes. It was checked *before*
+`registry.yml` was repointed, and that order is not incidental — `admin_root`
+comes from the registry, so once it says `/node-red-prod` the old runtime,
+which serves at `/`, can no longer be checked this way.
+
 **A1. Is the old instance still what Git says?** It answers unauthenticated
 today, which makes this the easy part:
 
@@ -180,6 +186,12 @@ ever rewrites an id.
 Both values move together. `admin_root` is what the runtime serves, and the new
 one really does serve `/node-red-prod` — unlike the old one, which is why the
 value is `""` until this step.
+
+**Between this change and phase D, `DRY_RUN=false` on `wfm-prod` is the one
+thing not to do.** The registry now points at the empty container while the old
+one still runs the flow, so a real deploy would start a second publisher on
+`dpn-svr-iot:8883` instead of replacing the first. The dry run is safe, and is
+the whole point of this phase.
 
 Then Jenkins: `INSTANCE=wfm-prod`, `DRY_RUN=true`, `EXPECT_REV` empty.
 
