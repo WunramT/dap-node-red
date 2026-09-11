@@ -41,23 +41,38 @@ Neither flow uses a `project link` node, so nothing routes through FlowFuse's
 broker and nothing has to be rebuilt on NATS or MQTT before the cutover. That
 was the blocking question; it is answered.
 
+## Networking: nothing to publish but 1880
+
+`pod`'s twenty `tcp in` nodes are all in **client** mode, connecting out to
+`zund-cut01`…`zund-cut10` on 50002 and 50003. So the container publishes none of
+them; what it needs is name resolution for the ten cutters, which is the
+`dns_search` field the registry already carries.
+
+Both agents publish `1880` on their host today, and both hosts' nginx is the
+stock configuration — `location /` over `/usr/share/nginx/html`, no `proxy_pass`
+in `conf.d`. So the new container takes the same shape: **publish 1880,
+`admin_root: ""`**, and `dpn`'s inbound paths (`/dashboard`,
+`/node_red_api/sap_import_finished`, `/update_tableau_workbooks`) answer at the
+same host and port as before, with no nginx change on either host. The agent
+serves its own editor at `/device-editor` with FlowFuse's auth; ours is
+`adminAuth` at the root, from a Jenkins credential like every other instance.
+
 ## What still has to be measured
 
-- **`tcp in`: server or client.** Twenty nodes across two ports, ten each, named
-  after machines (`D300L320116-a`). Ten listeners on one port cannot coexist, so
-  they are almost certainly outbound client connections — but "almost certainly"
-  decides whether the new container publishes two ports or none, so it gets
-  measured, not assumed.
-- **`axios` and `ajv` at runtime.** Node-RED installs a function node's external
-  modules into the userDir with npm, and a baked image behind a firewall cannot.
-  The agent's project carries an `.npmrc`, so an internal registry probably
-  exists. Which of the three fixes applies — reachable registry, pre-populated
-  `/data/externalModules`, or baked and resolvable — depends on what that file
-  says.
-- **nginx on both hosts.** Each runs one on `:80`, and `dpn`'s inbound paths have
-  to keep working unchanged. That config decides `admin_root`.
+- **`axios` and `ajv` in a baked image.** Seven of `dpn`'s function nodes declare
+  external modules. Node-RED installs those into the userDir with npm at
+  runtime, which a baked image behind a firewall cannot do, and whether modules
+  already present in the image satisfy it is not worth guessing. Measure it on
+  the workbench before the window: `nr.py edit dpn-test --baked`, a function node
+  that requires `axios`, Deploy, read the log.
 - **Names.** Proposed `pod-prod` and `dpn-prod`, each with an empty `-test` twin
   as a workbench, matching the rest of the estate.
+
+**The agent's `.npmrc` is not repo content.** It carries a registry credential
+for `registry.flowfuse.com`, scoped to `@flowfuse-nodes` — a scope none of the
+modules we keep belong to. It is not copied, not committed, and not needed:
+`@flowfuse/node-red-dashboard` is a different scope and resolves from the public
+registry, which the first CI build confirms.
 
 ## Cutover, per instance
 
