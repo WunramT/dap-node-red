@@ -33,8 +33,11 @@ import json
 import os
 import re
 import shutil
+import socket
+import socketserver
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -324,6 +327,54 @@ def editor_bind(compose: list[str], environ) -> str:
     return "0.0.0.0" if in_vm else "127.0.0.1"
 
 
+class _Relay(socketserver.ThreadingTCPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+    target: tuple[str, int]
+
+
+class _Pipe(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        try:
+            upstream = socket.create_connection(self.server.target, timeout=5)
+        except OSError:
+            return
+        with upstream:
+            done = threading.Event()
+
+            def pump(src: socket.socket, dst: socket.socket) -> None:
+                try:
+                    while chunk := src.recv(65536):
+                        dst.sendall(chunk)
+                except OSError:
+                    pass
+                finally:
+                    done.set()
+
+            for a, b in ((self.request, upstream), (upstream, self.request)):
+                threading.Thread(target=pump, args=(a, b), daemon=True).start()
+            done.wait()
+
+
+def relay(target: str, port: int = 1880) -> _Relay | None:
+    """Listen on this container's own localhost and forward to the editor.
+
+    VS Code forwards a port number, which it resolves against localhost inside
+    this container. The editor is a sibling container, so nothing listens there
+    and no network or publish setting changes that: the port is published on
+    the engine's machine, which is not this container and not the browser's
+    host either. One hop on localhost is what closes that gap, and it leaves
+    the editor's own network, DNS and isolation untouched.
+    """
+    try:
+        server = _Relay(("127.0.0.1", port), _Pipe)
+    except OSError:
+        return None
+    server.target = (target, port)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
 def answers(url: str, timeout: float = 1.5) -> bool:
     """Whether something serves HTTP there, right now."""
     try:
@@ -477,10 +528,20 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
               f"{'  (the engine runs in a VM, so loopback alone would not reach you)' if in_vm else ''}\n")
         staged = session_digest(inst["app"])
         code = None
+        hop = None
         try:
             code = run([*compose, *files, "up", "-d"], env)
             if code == 0:
                 candidates = editor_candidates(compose, in_vm, env.get("EDITOR_NETWORK"))
+                # In a container, VS Code can only forward a port it finds on
+                # this container's localhost, so put one there.
+                address = editor_address(compose)
+                if address and os.environ.get("LOCAL_WORKSPACE_FOLDER"):
+                    hop = relay(address)
+                    if hop:
+                        candidates.insert(0, ("http://localhost:1880",
+                                              "forwarded from this container to "
+                                              f"{address}, so VS Code can pick it up"))
                 # compose returns when the container started, not when Node-RED
                 # is listening, and the probe is the whole point of this line.
                 for _ in range(20):
@@ -491,6 +552,8 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
                 code = run([*compose, *files, "logs", "-f"], env)
             return code
         finally:
+            if hop:
+                hop.shutdown()
             run([*compose, *files, "down"], env)
             # Also on Ctrl-C, which is the normal way to end an editor session.
             if session_digest(inst["app"]) == staged:

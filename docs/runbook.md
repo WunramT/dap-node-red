@@ -410,9 +410,17 @@ on 1880 inside the dev container and VS Code must not forward that port: the
 forward would claim `localhost:1880` in the browser and tunnel it to nothing,
 which renders as a grey page rather than a refused connection.
 
-So when `localhost` stays silent, the banner says to forward the address that
-did answer, in the VS Code Ports panel. That is the path that works from a dev
-container, and it is the one the tool now measures rather than assumes.
+**In a dev container it puts a hop on localhost.** The Ports panel takes a port
+number and resolves it against `localhost` inside the dev container, and the
+editor is a sibling container, so nothing is there to forward. No network or
+publish setting changes that: the port is published on the engine's machine,
+which is neither this container nor the browser's host. So `nr.py edit` listens
+on `127.0.0.1:1880` in the dev container and forwards to the editor's address.
+VS Code then finds the port on its own, and the editor keeps its own network,
+DNS and isolation.
+
+The hop only exists while the editor runs, and only in a dev container. On a
+workstation with a local daemon the published port is already right.
 
 Prefer `nr.py edit` over the bare compose call: it pins the editor to the Node-RED version that instance runs, which a plain `APP=... docker compose up` does not, and it finds the container engine — podman on a workstation, Docker on a server, or whatever `CONTAINER_ENGINE` names. A 5.x editor writes fields into the flow that a 4.0.x runtime does not know, in a file whose whole purpose is to deploy unchanged. For a flow that uses palette nodes, add `--baked` so the editor runs that app's own image and those nodes open as themselves instead of as "unknown" — that pulls from Harbor and needs a login there. Log in with the engine `nr.py` actually used, which it prints: on Windows `podman compose` hands the work to `docker-compose.exe` and points it at podman's own socket, so `Error response from daemon: unauthorized ... action: pull` is podman answering through its Docker-compatible API and `podman login` is what fixes it — the name of the compose binary in the message says nothing about which engine pulls. When the pull fails the editor never starts, and `nr.py` says so rather than reporting a copy-back; the app file is untouched.
 
