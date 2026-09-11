@@ -150,6 +150,25 @@ finally:
 check("a target that is not listening closes instead of hanging",
       nr.answers("http://127.0.0.1:18801", timeout=0.5) is False)
 
+# A registry login belongs to the client that ran it; the pulled image belongs
+# to the engine. So --baked asks for nothing once the engine has the image, and
+# the hint has to point at the pull before the login.
+stub = TMP / "bin"
+stub.mkdir()
+(stub / "engine").write_text(
+    '#!/bin/sh\n[ "$3" = "known:1" ] && echo sha256:abc\nexit 0\n', encoding="utf-8")
+(stub / "engine").chmod(0o755)
+engine = [str(stub / "engine"), "compose"]
+check("an image the engine already has needs no pull",
+      nr.image_present(engine, "known:1") is True)
+check("one it does not have is reported missing",
+      nr.image_present(engine, "other:1") is False)
+hint = nr.pull_hint("podman", "harbor.example.de/dap-node-red/wfm-prod:4.0.9-1")
+check("the hint offers the pull before the login",
+      hint.index("podman pull") < hint.index("podman login"), hint)
+check("and the login names the registry, not the image",
+      "podman login harbor.example.de\n" in hint, hint)
+
 # The override joins an existing network rather than creating one, which is
 # what makes the name resolvable where the network has DNS.
 nr.stage_network(APP, "devcontainer_default")
