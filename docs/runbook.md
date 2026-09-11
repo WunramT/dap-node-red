@@ -403,6 +403,13 @@ browser and tunnel it to nothing, which renders as a grey page rather than a
 refused connection. `.devcontainer/devcontainer.json` therefore forwards
 nothing.
 
+**Inside a dev container the editor joins the dev container's own network**, so
+it answers at `http://node-red-editor:1880` and that name holds across runs.
+Without it the editor gets a network of its own and an address that changes
+every start, which is not something you can forward once and keep. The
+override that does this is written next to the staged flow, and it marks the
+network `external` so compose joins it rather than creating one.
+
 **`nr.py edit` prints the address to open, after the container is up.** It
 starts the editor detached, asks the engine for the container's own address,
 prints it, then follows the log until Ctrl-C and stops the container. Read that

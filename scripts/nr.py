@@ -153,6 +153,36 @@ def stage_dns(app: str, search: list[str]) -> str | None:
     return f".editor-session/{app}/dns.yml"
 
 
+def own_network(compose: list[str]) -> str | None:
+    """The network this container is on, when we are running inside one.
+
+    A sibling container on a network of its own is reachable only by an address
+    that changes every run, and VS Code forwards ports from inside this
+    container. Putting the editor on the same network makes it reachable by
+    name, which is stable enough to forward once and keep.
+    """
+    if not os.environ.get("REMOTE_CONTAINERS") and not os.environ.get("LOCAL_WORKSPACE_FOLDER"):
+        return None
+    me = os.environ.get("HOSTNAME")
+    if not me:
+        return None
+    out = subprocess.run(
+        [compose[0], "inspect", "-f",
+         "{{range $name, $conf := .NetworkSettings.Networks}}{{$name}} {{end}}", me],
+        capture_output=True, text=True)
+    names = out.stdout.split() if out.returncode == 0 else []
+    return names[0] if names else None
+
+
+def stage_network(app: str, network: str) -> str:
+    """A compose override that joins an existing network instead of creating one."""
+    body = ["networks:", f"  {network}:", "    external: true"]
+    path = SESSION / app / "network.yml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(body) + "\n", encoding="utf-8")
+    return f".editor-session/{app}/network.yml"
+
+
 def session_digest(app: str) -> str | None:
     """Fingerprint of the session's flow, to tell "the editor wrote" from "it never ran".
 
@@ -302,7 +332,7 @@ def editor_address(compose: list[str]) -> str | None:
     return found[0] if found else None
 
 
-def editor_urls(address: str | None, engine: str, in_vm: bool) -> str:
+def editor_urls(address: str | None, engine: str, in_vm: bool, by_name: bool = False) -> str:
     """Where to open the editor, and which of the addresses is the reliable one.
 
     Publishing a port only helps when the machine publishing it is the one
@@ -311,6 +341,9 @@ def editor_urls(address: str | None, engine: str, in_vm: bool) -> str:
     own address answers.
     """
     lines = ["", "editor is up."]
+    if by_name:
+        lines.append("  http://node-red-editor:1880   on this container's own network,")
+        lines.append("                                 so the name holds across runs")
     if not in_vm:
         lines.append("  http://localhost:1880")
     if address:
@@ -320,7 +353,10 @@ def editor_urls(address: str | None, engine: str, in_vm: bool) -> str:
         lines.append("  http://localhost:1880   only if the engine's VM forwards it, "
                      "which it may not")
         lines.append("")
-        if address:
+        if by_name:
+            lines.append("  The browser is outside this container, so forward it once:")
+            lines.append("  VS Code Ports panel, Forward a Port, node-red-editor:1880")
+        elif address:
             lines.append("  In a dev container the browser is outside both. Forward the")
             lines.append("  container address above: VS Code Ports panel, Forward a Port.")
         else:
@@ -417,6 +453,10 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
             if override:
                 files += ["-f", override]
                 print(f"search domains: {', '.join(inst['dns_search'])}")
+            shared = own_network(compose)
+            if shared:
+                files += ["-f", stage_network(inst["app"], shared)]
+                env["EDITOR_NETWORK"] = shared
         print(f"editor image:   {env.get('EDITOR_IMAGE', 'nodered/node-red:' + version)}")
         print(f"editor network: {env.get('EDITOR_NETWORK', 'bridged')}"
               f"{'  (no route out)' if isolated else '  (databases and brokers reachable)'}")
@@ -427,7 +467,8 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         try:
             code = run([*compose, *files, "up", "-d"], env)
             if code == 0:
-                print(editor_urls(editor_address(compose), compose[0], in_vm))
+                print(editor_urls(editor_address(compose), compose[0], in_vm,
+                                  by_name=bool(env.get("EDITOR_NETWORK")) and not isolated))
                 code = run([*compose, *files, "logs", "-f"], env)
             return code
         finally:
