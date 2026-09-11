@@ -384,6 +384,31 @@ def answers(url: str, timeout: float = 1.5) -> bool:
         return False
 
 
+def image_present(compose: list[str], tag: str) -> bool:
+    """Whether the engine already has this image, so no pull and no login."""
+    out = subprocess.run([compose[0], "images", "-q", tag],
+                         capture_output=True, text=True)
+    return bool(out.returncode == 0 and out.stdout.strip())
+
+
+def pull_hint(engine: str, tag: str) -> str:
+    """What to do when the engine lacks a baked image.
+
+    The pull is the engine's, and so is the image once it has it. A login in
+    one client does not reach another — a podman login on Windows writes the
+    Windows user's auth file, which a container cannot see — but the image does
+    not need to be pulled twice. Pulling once from wherever you are already
+    logged in serves every later session.
+    """
+    return (f"\n{tag}\nis not on the engine yet, so this run has to pull it and needs a\n"
+            f"registry login. The image belongs to the engine once it is there, so the\n"
+            f"cheapest way is to pull it once from wherever you are already logged in:\n"
+            f"    {engine} pull {tag}\n"
+            f"Then every later session finds it and asks for nothing. To log in here\n"
+            f"instead:\n"
+            f"    {engine} login {nodered.tag_registry(tag)}\n")
+
+
 def editor_address(compose: list[str]) -> str | None:
     """The editor container's own address, asked of the engine."""
     out = subprocess.run(
@@ -505,8 +530,10 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         env["NODE_RED_VERSION"] = version
         if baked:
             # That app's own image, so its palette nodes open as themselves
-            # rather than as "unknown". Needs a docker login to Harbor.
+            # rather than as "unknown".
             env["EDITOR_IMAGE"] = inst["image_tag"]
+            if not image_present(compose, inst["image_tag"]):
+                print(pull_hint(compose[0], inst["image_tag"]))
         env["EDITOR_DATA"] = data
         files = ["-f", "compose/editor.yml"]
         if isolated:

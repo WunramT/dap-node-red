@@ -94,7 +94,7 @@ container.
 | `guide.py --list` | The five task loops. `--print <task>` shows one without running anything. |
 | `nr.py status` | Every instance: does it still match Git? |
 | `nr.py check <inst>` | Same for one, with the diff. |
-| `nr.py edit <inst>` | Local editor on a copy. `--baked` for palette nodes, `--isolated` for no network. |
+| `nr.py edit <inst>` | Local editor on a copy. `--baked` for palette nodes (pull the image once, see below), `--isolated` for no network. |
 | `nr.py capture <inst>` | Read a running flow back into `apps/`. |
 | `nr.py deploy <inst>` | Dry run only. Real deploys go through Jenkins. |
 | `nr.py promote <a> <b> <tab>` | Move one tab and its dependencies. `--copy` or `--move`. |
@@ -110,6 +110,11 @@ for you: dependencies, `nr.local.json` from the example, the registry check,
 every suite. Without the container, run that script yourself. Either way, fill
 in the URLs in `nr.local.json` before `check`, `capture` or `deploy`. A blank
 password is prompted for and not stored.
+
+`--baked` runs the app's own Harbor image. The login belongs to the client, the
+image to the engine — so pull it once from wherever you are already logged in
+(`podman pull <image_tag>`) and every later run finds it. `nr.py` prints that
+command when the engine does not have the image yet.
 
 ## Where things live
 

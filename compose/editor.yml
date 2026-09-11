@@ -44,6 +44,10 @@ services:
     # EDITOR_IMAGE is that app's own image, so its palette nodes open as
     # themselves; otherwise the plain runtime at the version the instance runs.
     image: ${EDITOR_IMAGE:-nodered/node-red:${NODE_RED_VERSION:-5.0.1}}
+    # Only pull when the engine does not already have it. The image lives on
+    # the engine, not in whatever client asked for it, so one pull from
+    # anywhere serves every later session and no login is needed again.
+    pull_policy: missing
     container_name: node-red-editor
     ports:
       # EDITOR_BIND is the address the port is published on, and 127.0.0.1 is
