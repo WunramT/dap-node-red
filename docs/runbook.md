@@ -428,20 +428,26 @@ Prefer `nr.py edit` over the bare compose call: it pins the editor to the Node-R
 registry login belongs to the client that ran it — `podman login` on Windows
 writes that Windows user's auth file, which a dev container cannot read — but
 the pulled image belongs to the *engine*, and both clients talk to the same
-one. So the login is not per session: pull the image once from wherever you are
-already logged in,
+one. Measured: an image pulled on the workstation shows up in `docker images`
+inside the dev container. So the login is not per session. Pull the image once
+on the workstation,
 
 ```
 podman pull harbor.aks-infra.polipol-service.de/dap-node-red/<app>:<tag>
 ```
 
-and every later `--baked` run finds it and asks for nothing. `nr.py` checks
-before starting and prints that command when the engine lacks the image;
-`pull_policy: missing` in `compose/editor.yml` is what keeps it from pulling
-again once it is there. Logging in inside the dev container works too, but that
-auth file goes away with the container. One exception to *any* of this: a tag
-the engine has never seen — after a palette rebuild — has to be pulled once
-more, by whichever client is logged in.
+and every later `--baked` run finds it and asks for nothing. Note the pull is
+per **app**: `wfm-test` and `wfm-prod` are separate images.
+
+`nr.py edit --baked` checks both halves before it starts anything. If the
+engine lacks the image and this client has no credential for the registry, it
+stops with that `podman pull` command rather than handing compose a pull that
+cannot succeed — no editor starts and no app file is touched. `pull_policy:
+missing` in `compose/editor.yml` keeps it from pulling again once the image is
+there. Logging in inside the dev container works too, and `nr.py` then just
+pulls, but that credential goes away with the container. A tag the engine has
+never seen — after a palette rebuild — has to be pulled once more, by whichever
+client is logged in.
 
 If you do log in here, use the engine `nr.py` actually used, which it prints: on Windows `podman compose` hands the work to `docker-compose.exe` and points it at podman's own socket, so `Error response from daemon: unauthorized ... action: pull` is podman answering through its Docker-compatible API and `podman login` is what fixes it — the name of the compose binary in the message says nothing about which engine pulls. When the pull fails the editor never starts, and `nr.py` says so rather than reporting a copy-back; the app file is untouched.
 

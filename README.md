@@ -112,9 +112,9 @@ in the URLs in `nr.local.json` before `check`, `capture` or `deploy`. A blank
 password is prompted for and not stored.
 
 `--baked` runs the app's own Harbor image. The login belongs to the client, the
-image to the engine — so pull it once from wherever you are already logged in
-(`podman pull <image_tag>`) and every later run finds it. `nr.py` prints that
-command when the engine does not have the image yet.
+image to the engine both share — so pull it once on the workstation
+(`podman pull <image_tag>`, per app) and every later run finds it. From a dev
+container `nr.py` stops with that exact command instead of failing in compose.
 
 ## Where things live
 

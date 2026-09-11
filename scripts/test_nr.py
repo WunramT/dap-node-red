@@ -15,6 +15,7 @@ block, which is one crash away from leaving a production flow half merged.
 """
 
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -163,11 +164,51 @@ check("an image the engine already has needs no pull",
       nr.image_present(engine, "known:1") is True)
 check("one it does not have is reported missing",
       nr.image_present(engine, "other:1") is False)
-hint = nr.pull_hint("podman", "harbor.example.de/dap-node-red/wfm-prod:4.0.9-1")
-check("the hint offers the pull before the login",
-      hint.index("podman pull") < hint.index("podman login"), hint)
-check("and the login names the registry, not the image",
-      "podman login harbor.example.de\n" in hint, hint)
+
+# A login belongs to the client that ran it, so whether one exists here is
+# asked, not assumed — and when it does not, the pull has to run where it does.
+auth = TMP / "auth.json"
+auth.write_text(json.dumps({"auths": {"harbor.example.de": {"auth": "eW8="}}}), encoding="utf-8")
+real_env = os.environ.get("REGISTRY_AUTH_FILE")
+os.environ["REGISTRY_AUTH_FILE"] = str(auth)
+try:
+    check("a credential for that registry counts as logged in",
+          nr.logged_in("harbor.example.de") is True)
+    check("one for another registry does not",
+          nr.logged_in("other.example.de") is False)
+    auth.write_text("not json", encoding="utf-8")
+    check("an unreadable auth file is not a login",
+          nr.logged_in("harbor.example.de") is False)
+finally:
+    if real_env is None:
+        del os.environ["REGISTRY_AUTH_FILE"]
+    else:
+        os.environ["REGISTRY_AUTH_FILE"] = real_env
+
+tag = "harbor.example.de/dap-node-red/wfm-prod:4.0.9-1"
+away = nr.pull_hint("docker", tag, here=False)
+check("without a login here it names the workstation pull",
+      f"podman pull {tag}" in away, away)
+check("and says why, so the login is not the first thing tried",
+      "no login" in away and "would fail here" in away, away)
+check("the login stays as the fallback, on the registry not the image",
+      away.index("podman pull") < away.index("docker login harbor.example.de\n"), away)
+here = nr.pull_hint("docker", tag, here=True)
+check("with a login here it just says it is pulling, and asks for nothing",
+      "Pulling" in here and "login" not in here, here)
+
+# And the run stops there rather than handing compose a pull that cannot work.
+real = (nr.image_present, nr.logged_in, nr.compose_cmd, nr.run)
+nr.image_present = lambda compose, tag: False
+nr.logged_in = lambda registry: False
+nr.compose_cmd = lambda name: ["engine", "compose"]
+nr.run = lambda *a, **k: check("compose is never reached", False)
+try:
+    inst = {"name": APP, "app": APP, "image_tag": tag}
+    check("--baked stops when the image is missing and there is no login here",
+          nr.act("edit", inst, {}, baked=True) == 1)
+finally:
+    nr.image_present, nr.logged_in, nr.compose_cmd, nr.run = real
 
 # The override joins an existing network rather than creating one, which is
 # what makes the name resolvable where the network has DNS.
