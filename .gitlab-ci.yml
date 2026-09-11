@@ -54,7 +54,12 @@ scan:hadolint:
 
 validate:registry:
   stage: Validate
-  image: python:3.13-slim
+  # Not -slim: the palette-tag check below diffs against the base commit, and
+  # slim carries no git. Without it the check skips and the guard is not there.
+  image: python:3.13
+  variables:
+    # The base commit has to be in the clone for that diff to work.
+    GIT_DEPTH: 0
   before_script:
     - pip install --no-cache-dir -r scripts/requirements.txt
   script:
@@ -88,7 +93,8 @@ validate:registry:
 
 validate:normalize:
   stage: Validate
-  image: python:3.13-slim
+  # The suites include one that diffs with git, which -slim does not carry.
+  image: python:3.13
   before_script:
     # test_deploy.py reads the registry, which needs PyYAML unless registry.json
     # was generated first. Installing here keeps the job independent of whether
@@ -96,7 +102,9 @@ validate:normalize:
     - pip install --no-cache-dir -r scripts/requirements.txt
   script:
     # Every suite, so adding one does not mean remembering to list it here.
-    - 'for suite in scripts/test_*.py; do python3 "$suite"; done'
+    # `|| exit 1` because a loop exits with the status of its LAST command: a
+    # suite failing anywhere but at the end would otherwise pass the job.
+    - 'for suite in scripts/test_*.py; do python3 "$suite" || exit 1; done'
     # No apps/ yet — the glob matches nothing and the job passes until there is
     # something to check. Once apps/ exists this fails on any un-normalized flow.
     - 'shopt -s nullglob; files=(apps/*/flows.json); [ ${#files[@]} -eq 0 ] || python3 scripts/normalize.py --check "${files[@]}"'

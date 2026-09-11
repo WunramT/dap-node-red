@@ -78,15 +78,26 @@ def palette_tags_moved(ref: str) -> list[str]:
     validates, the deploy still pins it, and the content is different.
 
     Empty on anything this cannot answer — a missing ref, no git — because a
-    check that guesses is worse than one that admits it did not run.
+    check that guesses is worse than one that admits it did not run. It says so
+    on stderr: a skip in CI is a job that needs git or a deeper clone, not a
+    pass.
     """
     def git(*args) -> str | None:
-        out = subprocess.run(["git", *args], capture_output=True, text=True, cwd=ROOT)
+        try:
+            out = subprocess.run(["git", *args], capture_output=True, text=True, cwd=ROOT)
+        except FileNotFoundError:
+            return None
         return out.stdout if out.returncode == 0 else None
+
+    if git("rev-parse", "--git-dir") is None:
+        print("palette-tag check skipped: no git here, so nothing to diff. In CI "
+              "the job image needs git.", file=sys.stderr)
+        return []
 
     changed = git("diff", "--name-only", ref, "--")
     if changed is None:
-        print(f"palette-tag check skipped: cannot diff against {ref}", file=sys.stderr)
+        print(f"palette-tag check skipped: cannot diff against {ref}. A shallow "
+              f"clone may not contain it — set GIT_DEPTH: 0.", file=sys.stderr)
         return []
 
     apps = {Path(line).parts[1] for line in changed.splitlines()
