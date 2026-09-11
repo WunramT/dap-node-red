@@ -91,7 +91,7 @@ Only the flow deploy path (no restart) has been tested for real so far. The seco
 
 These do **not** block "showing it live" — they concern only the 2 FlowFuse instances and 2 empty instances, not the 12 apps already finished:
 
-- **FlowFuse migration** (`pod-svr-lin01`, `dpn-svr-iot`): blocked on the credential key for `flows_cred.json` (open question 1). Its own undertaking, after phase 2.
+- **FlowFuse migration** (`pod-svr-lin01`, `dpn-svr-iot`): the credential key is answered — it comes across in `device.yml`. What is left is the FlowFuse-only nodes (open question 1) and the cutover itself. Its own undertaking, after phase 2.
 - **`slu-prod` / `slu-test`**: empty, no decision on what they are for. No `apps/` directory until that is settled.
 
 ---

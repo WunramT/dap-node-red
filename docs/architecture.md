@@ -205,14 +205,27 @@ Two servers run their Node-RED under FlowFuse. They are a **migration source**, 
 
 That direction is the same decision the whole architecture rests on. FlowFuse is a control plane that owns the flows, which is the category decision 1 rejected — the reasoning does not change because the control plane is a good one.
 
-Both run `flowfuse/device-agent:latest`, and the inventory found the decisive fact: the flow **is on disk**, at `/opt/flowfuse-device/project/flows.json`, with `flows_cred.json` beside it. Extraction is a file copy, not a platform export — the expensive version of this migration is off the table.
+Both run `flowfuse/device-agent:latest`. The flow is a file, not a platform export — but it lives **inside the container**, not on the host: the agent's compose mounts only `./device.yml`, so `/opt/flowfuse-device/project/` is the container's own write layer. Extraction is `docker cp` from a running agent, which is why the agent is retired last.
 
-Two things that still need settling:
+Measured on both hosts, 2026-09-11:
 
-- **The credential key.** `flows_cred.json` exists, so credentials are in use and encrypted. The key lives in the device-agent's own configuration, not in `/data`. Whether it can be carried over decides between "copy two files" and "copy the flow and re-enter every credential by hand". Open question 3.
-- **The device agent keeps syncing.** The file on disk is the agent's copy of what the platform holds; the platform stays the source of truth until the device is unenrolled. So the cutover order matters: copy the flow, stand up the plain container, unenroll, then retire the agent — otherwise the agent overwrites the file from the platform.
+| | `pod-svr-lin01` | `dpn-svr-iot` |
+|---|---|---|
+| nodes / node types | 154 / 25 | 852 / 41 |
+| tabs | Zund Europol, Druckluft | beil, huh, zund, Bäumer, DBT, homag, Email, Koch, EPC, MDE_Collection, PoliMowa |
+| `flows.json` | 70 KB | 428 KB |
+| Node-RED | 4.0.8, pinned | `latest`, resolved to 4.0.9 |
+| `flows_cred.json` | 5980 B | 9664 B |
+| agent up since | 7 weeks | 6 months |
 
-Palette is FlowFuse-managed: whatever it installs per project becomes that app's `apps/<app>/package.json`, which the image then bakes.
+**The credential key is carryable** (open question 1, closed). It is `credentialSecret` in `device.yml`, the one file the compose bind-mounts, and `.config.runtime.json` holds no `_credentialSecret` of its own on either host — so the file on disk is encrypted with the key from the config, and the migration is "copy two files", not "re-enter every credential". The new instance must name that key in **both** places, as in "Moving an instance to a new container".
+
+Two things the numbers above do not settle:
+
+- **FlowFuse's own palette nodes.** Both projects depend on `@flowfuse/nr-project-nodes` and `@flowfuse/nr-assistant`, `dpn-svr-iot` also on `@flowfuse/node-red-dashboard`. The assistant is an editor helper and drops out. Project-link nodes route through FlowFuse's broker: wherever the flow uses one, that path **stops working** off the platform and has to be replaced — with NATS or MQTT, which both hosts already run. The dashboard is open source and survives, baked into the image like any other module.
+- **The device agent keeps syncing.** The file in the container is the agent's copy of what the platform holds; the platform stays the source of truth until the device is unenrolled. So the cutover order matters: copy the flow, stand up the plain container, unenroll, then retire the agent — otherwise the agent overwrites its copy from the platform. `image: latest` with nothing but `device.yml` mounted makes that sharper: after the unenroll, one `docker compose pull` would leave nothing to recover from.
+
+Palette is FlowFuse-managed: whatever it installs per project becomes that app's `apps/<app>/package.json`, which the image then bakes — minus the FlowFuse-only modules.
 
 Sequencing: migrate a plain-container pair first. It proves normalize → commit → deploy end to end against the simpler case, and the FlowFuse cutover then only adds the export step to a path that already works.
 
