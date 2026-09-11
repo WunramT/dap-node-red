@@ -83,36 +83,39 @@ check("every interface when the engine is podman",
 check("and when we are inside a dev container",
       nr.editor_bind(["docker", "compose"], {"LOCAL_WORKSPACE_FOLDER": "C:/x"}) == "0.0.0.0")
 
-# With the engine in a VM the browser is outside it, so the message must offer
-# the container's own address and must not claim localhost works. Both branches
-# are checked with the address injected, because whether one is discoverable
-# depends on a container running right now.
-vm = nr.editor_urls("172.20.0.2", "podman", in_vm=True)
-check("in a VM the container address is offered", "http://172.20.0.2:1880" in vm, vm)
-check("and localhost is qualified, not promised", "only if" in vm, vm)
-check("and the way out of a dev container is named", "Ports panel" in vm, vm)
+# The banner reports what answered, not what should have. Four rounds of
+# deducing the reachable address from where the engine runs got it wrong every
+# time, so the probe decides and these tests inject its answer.
+real_answers = nr.answers
+try:
+    nr.answers = lambda url, timeout=1.5: url == "http://172.20.0.2:1880"
+    only_ip = nr.editor_urls([("http://node-red-editor:1880", "by name"),
+                              ("http://172.20.0.2:1880", "the container"),
+                              ("http://localhost:1880", "the published port")], "podman")
+    check("it lists only what answered", "172.20.0.2" in only_ip, only_ip)
+    check("and drops what did not", "node-red-editor" not in only_ip, only_ip)
+    check("and says to forward it when localhost is silent",
+          "Ports panel" in only_ip, only_ip)
 
-blind = nr.editor_urls(None, "podman", in_vm=True)
-check("with no address it says so and gives the command",
-      "did not report" in blind and "podman port node-red-editor" in blind, blind)
-check("and does not point at a line that is not there", "Ports panel" not in blind, blind)
+    nr.answers = lambda url, timeout=1.5: url == "http://localhost:1880"
+    local = nr.editor_urls([("http://localhost:1880", "the published port")], "docker")
+    check("with localhost answering it does not ask for a forward",
+          "Ports panel" not in local and "localhost" in local, local)
 
-named = nr.editor_urls("10.89.7.2", "docker", in_vm=True, by_name=True)
-check("on a shared network the name comes first",
-      named.index("node-red-editor:1880") < named.index("10.89.7.2"), named)
-check("and the forward instruction names it, not an address",
-      "Forward a Port, node-red-editor:1880" in named, named)
+    nr.answers = lambda url, timeout=1.5: False
+    blind = nr.editor_urls([("http://localhost:1880", "the published port")], "podman")
+    check("when nothing answers it says so and gives the command",
+          "nothing answered" in blind and "podman port node-red-editor" in blind, blind)
+    check("and promises no address", "http://localhost:1880 " not in blind, blind)
+finally:
+    nr.answers = real_answers
 
 # The override joins an existing network rather than creating one, which is
-# what makes the name resolvable from here.
+# what makes the name resolvable where the network has DNS.
 nr.stage_network(APP, "devcontainer_default")
 body = (nr.SESSION / APP / "network.yml").read_text(encoding="utf-8")
 check("the network override marks it external", "external: true" in body, body)
 check("and names the network to join", "devcontainer_default:" in body, body)
-
-local = nr.editor_urls("172.20.0.2", "docker", in_vm=False)
-check("with a local daemon localhost is the answer",
-      "http://localhost:1880" in local and "only if" not in local, local)
 
 # The lifecycle: start detached so the address can be read, follow the log, and
 # stop the container on the way out. A foreground `up` left no chance to print

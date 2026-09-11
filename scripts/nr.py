@@ -35,6 +35,8 @@ import re
 import shutil
 import subprocess
 import sys
+import time
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -322,6 +324,15 @@ def editor_bind(compose: list[str], environ) -> str:
     return "0.0.0.0" if in_vm else "127.0.0.1"
 
 
+def answers(url: str, timeout: float = 1.5) -> bool:
+    """Whether something serves HTTP there, right now."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            return response.status < 500
+    except Exception:
+        return False
+
+
 def editor_address(compose: list[str]) -> str | None:
     """The editor container's own address, asked of the engine."""
     out = subprocess.run(
@@ -332,37 +343,39 @@ def editor_address(compose: list[str]) -> str | None:
     return found[0] if found else None
 
 
-def editor_urls(address: str | None, engine: str, in_vm: bool, by_name: bool = False) -> str:
-    """Where to open the editor, and which of the addresses is the reliable one.
+def editor_urls(candidates: list[tuple[str, str]], engine: str) -> str:
+    """Where to open the editor, out of the candidates that answered.
 
-    Publishing a port only helps when the machine publishing it is the one
-    running the browser. With the engine in a VM, which is podman on Windows
-    and any dev container, localhost can reach nothing while the container's
-    own address answers.
+    Printed after probing rather than derived from where the engine runs. Four
+    rounds went into guessing this: a published port only helps if the machine
+    publishing it runs the browser, a container name only resolves if the
+    network has DNS, and podman's default network does not. So ask.
     """
-    lines = ["", "editor is up."]
-    if by_name:
-        lines.append("  http://node-red-editor:1880   on this container's own network,")
-        lines.append("                                 so the name holds across runs")
-    if not in_vm:
-        lines.append("  http://localhost:1880")
-    if address:
-        lines.append(f"  http://{address}:1880   the container itself, which answers"
-                     f"{' from in here' if in_vm else ''}")
-    if in_vm:
-        lines.append("  http://localhost:1880   only if the engine's VM forwards it, "
-                     "which it may not")
-        lines.append("")
-        if by_name:
-            lines.append("  The browser is outside this container, so forward it once:")
-            lines.append("  VS Code Ports panel, Forward a Port, node-red-editor:1880")
-        elif address:
-            lines.append("  In a dev container the browser is outside both. Forward the")
-            lines.append("  container address above: VS Code Ports panel, Forward a Port.")
-        else:
-            lines.append(f"  {engine} did not report the container's address. Ask it directly:")
-            lines.append(f"    {engine} port node-red-editor")
+    live = [(url, why) for url, why in candidates if answers(url)]
+    if not live:
+        return ("\neditor is up, and nothing answered on the addresses this machine\n"
+                f"can see. Ask the engine where it put the port:\n"
+                f"    {engine} port node-red-editor\n")
+
+    lines = ["", "editor is up. These answered just now:"]
+    lines += [f"  {url}   {why}" for url, why in live]
+    if not any(url.startswith("http://localhost") for url, _ in live):
+        lines += ["",
+                  "  localhost did not, so the browser is outside this machine.",
+                  "  Forward the line above: VS Code Ports panel, Forward a Port."]
     return "\n".join(lines) + "\n"
+
+
+def editor_candidates(compose: list[str], in_vm: bool, shared: str | None) -> list[tuple[str, str]]:
+    """Every address the editor might answer on, best first."""
+    found = []
+    if shared:
+        found.append(("http://node-red-editor:1880", "by name, if the network has DNS"))
+    address = editor_address(compose)
+    if address:
+        found.append((f"http://{address}:1880", "the container's own address"))
+    found.append(("http://localhost:1880", "the published port"))
+    return found
 
 
 def compose_cmd(instance: str) -> list[str]:
@@ -467,8 +480,14 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
         try:
             code = run([*compose, *files, "up", "-d"], env)
             if code == 0:
-                print(editor_urls(editor_address(compose), compose[0], in_vm,
-                                  by_name=bool(env.get("EDITOR_NETWORK")) and not isolated))
+                candidates = editor_candidates(compose, in_vm, env.get("EDITOR_NETWORK"))
+                # compose returns when the container started, not when Node-RED
+                # is listening, and the probe is the whole point of this line.
+                for _ in range(20):
+                    if any(answers(url, timeout=0.5) for url, _ in candidates):
+                        break
+                    time.sleep(0.5)
+                print(editor_urls(candidates, compose[0]))
                 code = run([*compose, *files, "logs", "-f"], env)
             return code
         finally:
