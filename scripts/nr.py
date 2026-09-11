@@ -391,21 +391,45 @@ def image_present(compose: list[str], tag: str) -> bool:
     return bool(out.returncode == 0 and out.stdout.strip())
 
 
-def pull_hint(engine: str, tag: str) -> str:
+def logged_in(registry: str) -> bool:
+    """Whether this client holds a credential for that registry.
+
+    Asked rather than assumed, because a login belongs to the client that ran
+    it: the auth file a `podman login` wrote on the workstation is in that
+    user's home and a container cannot read it.
+    """
+    files = [Path(os.environ["REGISTRY_AUTH_FILE"])] if os.environ.get("REGISTRY_AUTH_FILE") else []
+    files += [Path.home() / ".docker" / "config.json",
+              Path.home() / ".config" / "containers" / "auth.json"]
+    for auth in files:
+        try:
+            entries = json.loads(auth.read_text(encoding="utf-8")).get("auths") or {}
+        except (OSError, ValueError):
+            continue
+        if any(host == registry or host.endswith("/" + registry) for host in entries):
+            return True
+    return False
+
+
+def pull_hint(engine: str, tag: str, here: bool) -> str:
     """What to do when the engine lacks a baked image.
 
-    The pull is the engine's, and so is the image once it has it. A login in
-    one client does not reach another — a podman login on Windows writes the
-    Windows user's auth file, which a container cannot see — but the image does
-    not need to be pulled twice. Pulling once from wherever you are already
-    logged in serves every later session.
+    The pull is the engine's and so is the image once it has it, but the login
+    is the client's. So when this client has no credential the pull has to be
+    run where one exists — on the workstation, for a dev container — and every
+    later session then finds the image without logging in anywhere.
     """
-    return (f"\n{tag}\nis not on the engine yet, so this run has to pull it and needs a\n"
-            f"registry login. The image belongs to the engine once it is there, so the\n"
-            f"cheapest way is to pull it once from wherever you are already logged in:\n"
-            f"    {engine} pull {tag}\n"
-            f"Then every later session finds it and asks for nothing. To log in here\n"
-            f"instead:\n"
+    if here:
+        return (f"\nPulling {tag}\nfirst; the engine does not have it yet.\n")
+    return (f"\n{tag}\nis not on the engine yet, and this client has no login for\n"
+            f"{nodered.tag_registry(tag)}, so the pull would fail here.\n"
+            f"\n"
+            f"Run this on your workstation, where you are logged in:\n"
+            f"    podman pull {tag}\n"
+            f"\n"
+            f"The image belongs to the engine, which both clients share, so one pull is\n"
+            f"enough — this session then finds it and needs no login. Logging in here\n"
+            f"instead works too, but that credential is gone on the next rebuild:\n"
             f"    {engine} login {nodered.tag_registry(tag)}\n")
 
 
@@ -532,8 +556,13 @@ def act(action: str, inst: dict | None, cfg: dict, baked: bool = False,
             # That app's own image, so its palette nodes open as themselves
             # rather than as "unknown".
             env["EDITOR_IMAGE"] = inst["image_tag"]
+            # Stop before the compose run when the pull cannot succeed: the
+            # engine lacks the image and this client has no credential for it.
             if not image_present(compose, inst["image_tag"]):
-                print(pull_hint(compose[0], inst["image_tag"]))
+                here = logged_in(nodered.tag_registry(inst["image_tag"]))
+                print(pull_hint(compose[0], inst["image_tag"], here))
+                if not here:
+                    return 1
         env["EDITOR_DATA"] = data
         files = ["-f", "compose/editor.yml"]
         if isolated:
