@@ -217,16 +217,37 @@ body = (nr.SESSION / APP / "network.yml").read_text(encoding="utf-8")
 check("the network override marks it external", "external: true" in body, body)
 check("and names the network to join", "devcontainer_default:" in body, body)
 
+# CONTAINER_ENGINE used to be taken on trust, which turned a typo into a
+# FileNotFoundError from whichever engine call ran first.
+os.environ["CONTAINER_ENGINE"] = "no-such-engine"
+try:
+    try:
+        nr.compose_cmd(APP)
+        check("an engine that is not installed is refused", False)
+    except SystemExit as stop:
+        check("an engine that is not installed is refused, not used",
+              "not on PATH" in str(stop), str(stop))
+finally:
+    del os.environ["CONTAINER_ENGINE"]
+
 # The lifecycle: start detached so the address can be read, follow the log, and
 # stop the container on the way out. A foreground `up` left no chance to print
 # an address, and left the container running after some exits.
 calls = []
 real_run = nr.run
+real_engine = os.environ.get("CONTAINER_ENGINE")
+# The stub engine from above, so this tests the call sequence rather than
+# whether a container engine happens to be installed — CI images have none.
+os.environ["CONTAINER_ENGINE"] = str(stub / "engine")
 nr.run = lambda argv, env=None: (calls.append(list(argv)), 0)[1]
 try:
     nr.act("edit", nodered.find(APP), {})
 finally:
     nr.run = real_run
+    if real_engine is None:
+        del os.environ["CONTAINER_ENGINE"]
+    else:
+        os.environ["CONTAINER_ENGINE"] = real_engine
 def subcommand(call: list[str]) -> str:
     """What compose was asked to do, with the -f file pairs dropped."""
     last_file = max(i for i, part in enumerate(call) if part.endswith(".yml"))
