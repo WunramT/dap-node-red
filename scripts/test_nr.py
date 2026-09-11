@@ -110,6 +110,46 @@ try:
 finally:
     nr.answers = real_answers
 
+# VS Code forwards a port number and resolves it against this container's
+# localhost. The editor is a sibling container, so one hop on localhost is what
+# makes the forward possible at all. Proven against a real HTTP server, since
+# that needs no container engine.
+import threading  # noqa: E402
+import urllib.request  # noqa: E402
+from http.server import BaseHTTPRequestHandler, HTTPServer  # noqa: E402
+
+
+class _Editor(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        body = b"editor"
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+upstream = HTTPServer(("127.0.0.1", 0), _Editor)
+threading.Thread(target=upstream.serve_forever, daemon=True).start()
+hop = nr.relay("127.0.0.1", port=18801)
+try:
+    check("the relay starts", hop is not None)
+    hop.target = ("127.0.0.1", upstream.server_address[1])
+    with urllib.request.urlopen("http://127.0.0.1:18801", timeout=3) as answer:
+        check("localhost answers through it", answer.status == 200)
+        check("and it is the editor that answered", answer.read() == b"editor")
+    check("a port already taken is refused, not raised",
+          nr.relay("127.0.0.1", port=18801) is None)
+finally:
+    if hop:
+        hop.shutdown()
+    upstream.shutdown()
+
+check("a target that is not listening closes instead of hanging",
+      nr.answers("http://127.0.0.1:18801", timeout=0.5) is False)
+
 # The override joins an existing network rather than creating one, which is
 # what makes the name resolvable where the network has DNS.
 nr.stage_network(APP, "devcontainer_default")
