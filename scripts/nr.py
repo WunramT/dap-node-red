@@ -485,8 +485,12 @@ def compose_cmd(instance: str) -> list[str]:
     engine breaks `edit` on exactly the machines it exists for.
     """
     engine = os.environ.get("CONTAINER_ENGINE")
-    if engine:
+    if engine and (shutil.which(engine) or Path(engine).exists()):
         return [engine, "compose"]
+    if engine:
+        # Taken on trust, this surfaced later as a FileNotFoundError from
+        # whichever call happened to run first.
+        sys.exit(f"CONTAINER_ENGINE names {engine!r}, which is not on PATH.")
     for candidate in ("docker", "podman"):
         if shutil.which(candidate):
             return [candidate, "compose"]

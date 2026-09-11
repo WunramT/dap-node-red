@@ -94,6 +94,9 @@ validate:registry:
 validate:normalize:
   stage: Validate
   # The suites include one that diffs with git, which -slim does not carry.
+  # None of them needs a container engine or npm: what would use one is stubbed,
+  # because a suite that only runs on a workstation is a suite CI cannot keep
+  # honest.
   image: python:3.13
   before_script:
     # test_deploy.py reads the registry, which needs PyYAML unless registry.json
