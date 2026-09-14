@@ -16,20 +16,32 @@ It writes `inventory/REPORT.md` (the answers), `registry.draft.yml` and `samples
 
 ## Blocking
 
-### 1. The FlowFuse credential key
+### 1. Which FlowFuse-only nodes the two flows actually use
 
-Where the flow lives is settled: on disk, at `/opt/flowfuse-device/project/flows.json`, with `flows_cred.json` beside it on both device agents. Extraction is a file copy.
+The credential key is answered (2026-09-11): it is `credentialSecret` in
+`device.yml`, and neither agent's `.config.runtime.json` carries a
+`_credentialSecret` of its own, so `flows_cred.json` is encrypted with the key
+from the config and comes across with the file. The cheap migration.
 
-What is not settled is the key that decrypts `flows_cred.json`. It sits in the device-agent's own configuration rather than in `/data`, and it decides between two very different migrations — copy two files, or copy the flow and re-enter every credential by hand in the new instance.
+What is open is what the flows use that only exists under FlowFuse. Both
+projects pull `@flowfuse/nr-project-nodes`; a project-link node routes through
+FlowFuse's broker and stops working once the device is unenrolled.
 
 ```bash
-ssh pod-svr-lin01 'sudo ls -la /opt/flowfuse-device/'
-ssh pod-svr-lin01 'docker exec flowfuse-flow-fuse-1-1 sh -lc "ls -la /opt/flowfuse-device /opt/flowfuse-device/project"'
+# on the host, against the running agent
+C=$(docker ps -qf ancestor=flowfuse/device-agent:latest | head -1)
+docker exec $C node -e '
+const f=require("/opt/flowfuse-device/project/flows.json"), n={};
+f.forEach(x=>n[x.type]=(n[x.type]||0)+1);
+Object.entries(n).sort((a,b)=>b[1]-a[1]).forEach(([t,c])=>console.log(c,t));'
 ```
 
-Look for the agent's config (`device.yml` or similar) and for a `credentialSecret` or `_credentialSecret` in `/opt/flowfuse-device/project/settings.js` or `.config.runtime.json`. Report whether one exists — not its value.
+Any `project link in` / `project link out` / `project link call` is work that has
+to be replaced before the cutover — with NATS or MQTT, which both hosts run.
+Anything `ui-*` is FlowFuse Dashboard, which is open source and survives.
 
-**Unblocks:** the migration procedure for two servers. It blocks nothing on the other eight — those go first regardless (see "Sequencing" in [`architecture.md`](architecture.md)).
+**Unblocks:** the migration procedure for two servers. It blocks nothing on the
+other eight.
 
 ### 2. Jenkins credentials for 14 instances
 
@@ -74,7 +86,8 @@ If prod is genuinely unmigrated, it is the ideal first target — nothing to los
 | Which Node-RED versions are running? | Three — 4.0.5, 4.0.9, 5.0.1. Pin each instance to its current version first; converging is a separate upgrade | [`architecture.md`](architecture.md) |
 | Are the settings.js files the same file? | Yes — one template plus env overrides is viable. The literal text differs by whitespace, comment state and settings.js vintage; the real config differences are three, listed below | [`architecture.md`](architecture.md) |
 | Which instances share logic? | None. No two flows match, so every instance gets its own `apps/` directory | [`architecture.md`](architecture.md) |
-| Where does the FlowFuse flow live? | On disk, `/opt/flowfuse-device/project/flows.json` — a file copy, not a platform export | [`architecture.md`](architecture.md) |
+| Where does the FlowFuse flow live? | Inside the agent container at `/opt/flowfuse-device/project/flows.json` — `docker cp` from a running agent, not a platform export | [`architecture.md`](architecture.md) |
+| Can the FlowFuse credentials come across? | Yes — `credentialSecret` in `device.yml`, with no `_credentialSecret` in either agent's `.config.runtime.json` | [`architecture.md`](architecture.md) |
 | How does the deploying agent reach the Admin API? | Jenkins ships `deploy.py` over SSH and runs it on the target host, reaching the container by IP on `app_network` | decision 10 |
 | How many servers and instances? | 16 runtimes on 10 servers: 14 plain, 2 FlowFuse. 12 carry a flow — `slu-prod` and `slu-test` are empty, and `wfm-test` was added rather than found | [`architecture.md`](architecture.md) |
 | `wag-svr-lin01` or `wag-svr-lin01n`? | `wag-svr-lin01`, rebuilt the week before the inventory — current baseline | [`architecture.md`](architecture.md) |

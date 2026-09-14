@@ -98,6 +98,7 @@ container.
 | `nr.py capture <inst>` | Read a running flow back into `apps/`. |
 | `nr.py deploy <inst>` | Dry run only. Real deploys go through Jenkins. |
 | `nr.py promote <a> <b> <tab>` | Move one tab and its dependencies. `--copy` or `--move`. |
+| `cutover-plan.py <flow>` | Which tabs can move to another runtime alone, and which are linked together. |
 | `normalize.py --write <flow>` | Canonicalize a flow so it diffs readably. Before every commit. |
 | `validate-registry.py` | Registry against the schema and the rules around it. |
 | `drift-check.py --all --json <out>` | Read-only fleet sweep. |
