@@ -74,6 +74,36 @@ modules we keep belong to. It is not copied, not committed, and not needed:
 `@flowfuse/node-red-dashboard` is a different scope and resolves from the public
 registry, which the first CI build confirms.
 
+## Cutover, tab by tab
+
+The instance does not have to move in one step. The new container comes up with
+every tab **disabled**, and then one group of tabs at a time is enabled here and
+disabled in FlowFuse. The risk is one tab instead of a whole instance, and each
+step is an ordinary flow deploy — Git commit, Jenkins, no restart.
+
+The rule that makes it safe: **a tab runs in exactly one runtime at any moment.**
+Enabled here means disabled there, in that order for a reader and the other way
+round for a writer — `pod` writes Modbus to machines, so its tabs get disabled in
+FlowFuse first, then enabled here.
+
+What may not be split is decided by `link in` / `link out`: those pass messages
+in-process, so a link crossing a tab boundary stops delivering the moment the two
+ends run in different runtimes, and the sending side keeps firing as if nothing
+happened. `cutover-plan.py` reports the groups:
+
+```bash
+python3 scripts/cutover-plan.py apps/pod-prod/flows.json
+```
+
+MQTT, NATS and HTTP are not couplings — they go through a broker or a socket and
+work across runtimes. Shared config nodes are listed rather than grouped, because
+whether they can be held twice depends on the thing behind them: a Modbus device
+or a machine's TCP port usually takes one connection at a time.
+
+`flows_cred.json` goes into the new `/data` **before the first tab is enabled**,
+with the key in both files. Credentials belong to nodes, and a deploy from Git
+carries none.
+
 ## Cutover, per instance
 
 1. `docker cp` `flows.json`, `flows_cred.json` and `package.json` out of the
