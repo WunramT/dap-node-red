@@ -58,6 +58,13 @@ Still open on `wfm-svr-lin01`:
 - [ ] Pin `credentialSecret`.
 - [ ] For `cho-prod` additionally: `level: "info"` instead of `"trace"` (decision 13).
 - [ ] Create the Jenkins credentials for `auth_credential_id` and `credential_secret_id` where they are still missing — phase 0 should already show that through `unreachable`.
+- [ ] **Point the compose service at the registry's tag.** Measured on
+      `wag-prod` 2026-09-14: it runs `nodered/node-red:latest` from Docker Hub,
+      not the image CI builds. Until each service names its `image_tag`, that
+      field describes something nothing runs — and `DEPLOY_PALETTE=true` would
+      recreate the container on `latest`, without the baked palette. One edit
+      per host, and it restarts the container, so it belongs with the
+      `settings.js` edit rather than after it.
 - [ ] One `DRY_RUN=true` per instance as a check, then `DRY_RUN=false`.
 
 Instances that drifted in phase 0 do **not** come along automatically — their turn comes after the deliberate commit-or-discard decision.

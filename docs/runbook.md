@@ -120,14 +120,23 @@ The compose file and service name differ per host; both are in `registry.yml`.
 
 ## A new instance's /data must belong to the container user
 
-The compose services run as `1004:1004`, so the bind-mounted directory has to
-be owned by that uid before the container starts — and setting a foreign owner
-needs root:
+The bind-mounted directory has to be owned by the uid the container runs as,
+before it starts — and setting a foreign owner needs root. **The uid is not the
+same everywhere**: `wfm` runs `1004:1004`, `wag-prod` `1001:1001`, and the image's
+own `node-red` user is `1000`. What matters is that the service's `user:` and the
+directory's owner agree, so read the uid off the host rather than assuming one:
 
 ```bash
-sudo mkdir -p /home/administrator/Base_Container/<service>/data
-sudo chown -R 1004:1004 /home/administrator/Base_Container/<service>/data
-ls -ldn /home/administrator/Base_Container/<service>/data   # must read 1004 1004
+docker inspect <an existing node-red on that host> --format '{{.Config.User}}'
+```
+
+For a new instance on a host that has none, leaving `user:` out and chowning to
+the image's own user is the version with the fewest moving parts:
+
+```bash
+sudo mkdir -p <compose dir>/node-red/prod/data
+sudo chown -R 1000:1000 <compose dir>/node-red/prod/data
+ls -ldn <compose dir>/node-red/prod/data    # must match the uid the service runs as
 ```
 
 Without it the runtime starts and serves reads, so it looks healthy, and then

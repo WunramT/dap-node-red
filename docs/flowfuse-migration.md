@@ -147,10 +147,12 @@ the container must be **named** for that to work: `container_name: node-red-prod
 not compose's generated `base_container-node-red-prod-1`.
 
 ```bash
-# 1. the directory, owned by the uid the services run as (runbook)
-sudo mkdir -p /home/administrator/Base_Container/node-red-prod/data
-sudo chown -R 1004:1004 /home/administrator/Base_Container/node-red-prod/data
-ls -ldn /home/administrator/Base_Container/node-red-prod/data   # 1004 1004
+# 1. the directory, laid out like the other hosts and owned by the uid the
+#    container runs as — 1000 is the image's own node-red user, which is what
+#    the service below uses by leaving `user:` out
+sudo mkdir -p /home/administrator/Base_Container/node-red/prod/data
+sudo chown -R 1000:1000 /home/administrator/Base_Container/node-red/prod/data
+ls -ldn /home/administrator/Base_Container/node-red/prod/data
 
 # 2. back up the compose file before editing it — it holds every other service
 cd /home/administrator/Base_Container
@@ -167,11 +169,10 @@ The service, with no `ports:` while the agent still holds 1880:
     container_name: node-red-prod
     image: harbor.aks-infra.polipol-service.de/dap-node-red/pod-prod:4.0.8-1
     restart: always
-    user: "1004:1004"
     environment:
       - TZ=Europe/Berlin
     volumes:
-      - ./node-red-prod/data:/data
+      - ./node-red/prod/data:/data
     networks:
       - app_network
     dns:
@@ -181,8 +182,21 @@ The service, with no `ports:` while the agent still holds 1880:
       - pod.polipol.intra
 ```
 
-Copy the shape from a host that already works rather than trusting this block —
-`ssh wfm-svr-lin01 "docker inspect node-red-prod"` shows what a running one has.
+Copy the shape from a host that already works rather than trusting this block.
+Measured on `wag-prod`: `user` `1001:1001`, bind `.../node-red/prod/data`, no
+published port, `restart: always`, on `app_network` — and `image:
+nodered/node-red:latest`, which is the estate's open gap, not the pattern to
+copy (go-live plan, phase 2). `pod-prod` names its registry tag from the start.
+
+The network exists on both hosts already (`172.32.1.0/24`, with each host's
+nginx on it), so the compose file has to declare it as external rather than
+create one:
+
+```yaml
+networks:
+  app_network:
+    external: true
+```
 `dns` and `dns_search` are the agent's, so `zund-cut01`…`zund-cut10` resolve the
 way they do today.
 
