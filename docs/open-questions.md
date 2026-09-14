@@ -43,7 +43,23 @@ Anything `ui-*` is FlowFuse Dashboard, which is open source and survives.
 **Unblocks:** the migration procedure for two servers. It blocks nothing on the
 other eight.
 
-### 2. Jenkins credentials for 14 instances
+### 2. srem-test authenticates but does not serve its flow
+
+Measured 2026-09-14 from a dev container: `POST /auth/token` answers `200` in
+0.2s, `GET /flows` times out at 40s on both API versions. The network, the proxy
+and `admin_root` are therefore all fine — the runtime is up and wedged. It is
+also the instance carrying 1008 lines of drift and a plaintext Postgres password
+in its flow, so it was never deployable anyway.
+
+```bash
+ssh srem-svr-lin01 'docker logs node-red-test --tail 100'
+ssh srem-svr-lin01 'docker exec node-red-test ls -l /data/flows.json /data/.config.runtime.json'
+```
+
+**Unblocks:** rolling `srem-test` into the pipeline. Nothing else — it is one
+workbench instance.
+
+### 3. Jenkins credentials for 14 instances
 
 `registry.yml` now **names** 26 credentials — `nodered-<instance>-auth` and `nodered-<instance>-credsecret`. Naming them is not the same as having them: the ids validate, and a deploy fails at runtime until the credentials exist in Jenkins.
 
@@ -53,7 +69,7 @@ other eight.
 
 **Unblocks:** any real deploy.
 
-### 3. What are `slu-prod` and `slu-test` for?
+### 4. What are `slu-prod` and `slu-test` for?
 
 Both are **running** containers with `adminAuth` on, reachable, and answering `401` — they are not stopped. They are empty: no `flows.json`, no `flows_cred.json`, and `/data` untouched since July 2025.
 
@@ -69,7 +85,7 @@ The pipeline needs no change. They are also the safest possible first true deplo
 
 ## Not blocking
 
-### 4. Is `wag-prod`'s 15-node flow real production work?
+### 5. Is `wag-prod`'s 15-node flow real production work?
 
 `wag-svr-lin01` was rebuilt the week before the inventory. Its prod instance has 15 nodes and no palette modules; its test instance has 222 nodes and two. That pattern reads more like a prod instance not yet migrated back after the rebuild than like a small production application.
 

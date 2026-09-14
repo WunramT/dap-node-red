@@ -315,6 +315,41 @@ check("and reads the probe's three answers",
       all(code in r.stderr for code in ("401", "404", "200")), r.stderr[-600:])
 STATE["no_admin_auth"] = False
 
+# --- a runtime that authenticates and then does not answer -------------------
+# srem-test did exactly this: POST /auth/token in 0.2s, GET /flows timed out
+# twice at 40s. The old message blamed a proxy or "something other than
+# Node-RED on the port", both of which a successful token disproves.
+import socket  # noqa: E402
+import nodered  # noqa: E402
+
+deaf = socket.socket()
+deaf.bind(("127.0.0.1", 0))
+deaf.listen(1)          # accepts the connection, answers nothing
+deaf_url = f"http://127.0.0.1:{deaf.getsockname()[1]}/flows"
+real_timeout = nodered.TIMEOUT
+nodered.TIMEOUT = 1
+try:
+    for token, expected, unwanted, label in (
+        ("bearer-xyz", "authenticated moments ago", "http_proxy", "with a token in hand"),
+        (None, "no HTTP response", "authenticated moments ago", "without one"),
+    ):
+        try:
+            nodered.request(deaf_url, token=token)
+            check(f"a silent server raises {label}", False)
+        except SystemExit as stop:
+            check(f"a silent server is diagnosed {label}", expected in str(stop), str(stop))
+            check(f"and does not offer the other diagnosis {label}",
+                  unwanted not in str(stop), str(stop))
+    try:
+        nodered.request(deaf_url, token="bearer-xyz")
+    except SystemExit as stop:
+        check("the wedged-runtime message says where to look",
+              "docker logs" in str(stop), str(stop))
+        check("and names the timeout it waited", str(nodered.TIMEOUT) in str(stop), str(stop))
+finally:
+    nodered.TIMEOUT = real_timeout
+    deaf.close()
+
 server.shutdown()
 print(f"\n{len(FAILED)} failed" if FAILED else "\nall passed")
 sys.exit(1 if FAILED else 0)

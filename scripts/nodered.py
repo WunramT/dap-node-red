@@ -140,6 +140,36 @@ def base_url(inst: dict) -> str:
     return base
 
 
+def _silent(method: str, url: str, exc: Exception, token: str | None) -> SystemExit:
+    """Nothing came back. What that means depends on whether a token was in hand.
+
+    Getting one means this runtime answered a POST moments ago, so the network,
+    the proxy and admin_root are all proven and only the runtime is left — a
+    Node-RED that serves /auth/token but not /flows is up and wedged, not down.
+    Without a token nothing about the far end is established yet.
+    """
+    if token:
+        return SystemExit(
+            f"{method} {url} -> {type(exc).__name__}: {exc}\n"
+            f"  This instance authenticated moments ago, so the network, the\n"
+            f"  proxy and admin_root are all fine — it is the runtime that did\n"
+            f"  not answer within {TIMEOUT}s, which means up and wedged, not down:\n"
+            f"    docker logs <service> --tail 100\n"
+            f"    docker exec <service> ls -l /data/flows.json\n"
+            f"  A blocked event loop, a storage module waiting on a mount, or a\n"
+            f"  flow too large to serialize in that time are what do this."
+        )
+    return SystemExit(
+        f"{method} {url} -> {type(exc).__name__}: {exc}\n"
+        "  Something accepted the connection but sent no HTTP response.\n"
+        "  A closed port would refuse, so check, in this order:\n"
+        "    1. a proxy: urllib honours http_proxy/https_proxy. For an\n"
+        "       internal host, add it to no_proxy.\n"
+        "    2. what is actually on that port: curl -v <url>\n"
+        "    3. whether the instance is running at all."
+    )
+
+
 def request(url: str, *, method="GET", body=None, token=None, headers=None):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method)
@@ -197,24 +227,22 @@ def request(url: str, *, method="GET", body=None, token=None, headers=None):
                }.get(exc.code, f"  {exc.read()[:300].decode('utf-8', 'replace')}")
         ) from None
     except urllib.error.URLError as exc:
+        # A timeout arrives here when it happens while connecting and as a bare
+        # TimeoutError when it happens while reading. Same fault, so the same
+        # diagnosis: which phase it struck in is not the reader's problem.
+        if isinstance(exc.reason, TimeoutError):
+            raise _silent(method, url, exc.reason, token) from None
         raise SystemExit(f"{method} {url} -> unreachable: {exc.reason}") from None
     except (http.client.HTTPException, ConnectionError, TimeoutError) as exc:
         # RemoteDisconnected and friends come through urlopen unwrapped, so
         # without this the caller gets a traceback instead of a diagnosis — and
         # drift-check's sweep stops at the first host that does this.
         #
-        # Something accepted the TCP connection and then did not answer HTTP.
-        # A closed port refuses instead, so this is usually not "nothing there":
-        # it is a proxy in the way, or something other than Node-RED on the port.
-        raise SystemExit(
-            f"{method} {url} -> {type(exc).__name__}: {exc}\n"
-            "  Something accepted the connection but sent no HTTP response.\n"
-            "  A closed port would refuse, so check, in this order:\n"
-            "    1. a proxy: urllib honours http_proxy/https_proxy. For an\n"
-            "       internal host, add it to no_proxy.\n"
-            "    2. what is actually on that port: curl -v <url>\n"
-            "    3. whether the instance is running at all."
-        ) from None
+        # A token in hand changes the diagnosis completely. Getting one means
+        # this runtime answered a POST moments ago, so the network, the proxy
+        # and the path are all proven and only the runtime is left. Without one,
+        # nothing about the far end is established yet.
+        raise _silent(method, url, exc, token) from None
 
 
 def get_token(base: str, admin_root: str, user: str, password: str) -> str:
