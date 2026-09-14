@@ -115,7 +115,12 @@ python3 scripts/secrets-to-env.py apps/dpn-prod/flows.json --write    # switch t
 ```
 
 Eleven of the twelve are `postgreSQLConfig` passwords, and they carry a
-`passwordFieldType`, so they switch. Grouped by value they come to **four**
+`passwordFieldType`, so they switch. `env` is the only way out for them:
+`node-red-contrib-postgresql@0.14.2` offers `['str', 'global', 'env']` on that
+field and registers no `credentials` block, so there is nowhere in
+`flows_cred.json` for it to go — unlike a node whose password the credential
+store owns. `global` is also outside Git, but the value would have to reach the
+context through a flow first, which buys nothing. Grouped by value they come to **four**
 variables, not eleven — five of the pgbouncer configs and one unnamed node all
 hold the same secret. The twelfth is the mail node's `token`, and it is
 most likely not a secret at all: that node's `authtype` is `BASIC`, which does
