@@ -108,6 +108,15 @@ docker exec -i node-red node -e 'const b=require("bcryptjs");let d="";process.st
 
 If `bcryptjs` does not resolve in that image, `docker exec -it node-red npx node-red-admin hash-pw` does the same and prompts for the password. Put the username and password into a Jenkins credential and record the id as `auth_credential_id`.
 
+**For an instance that does not exist yet** there is no container to exec into, so use a throwaway one — the version does not have to match, the hash is the same either way:
+
+```bash
+docker run --rm -i -w /usr/src/node-red nodered/node-red:4.0.8 \
+  node -e 'const b=require("bcryptjs");let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(b.hashSync(d.trim(),8)))'
+```
+
+Which of the two credentials is chosen and which is given is worth keeping straight, because getting it backwards is silent: `auth_credential_id` holds a login **you invent** for the new instance, and `credential_secret_id` holds the key that instance's `flows_cred.json` is **already** encrypted with. Inventing that one makes every stored credential unreadable.
+
 **3. Restart, service-scoped.**
 
 ```bash
