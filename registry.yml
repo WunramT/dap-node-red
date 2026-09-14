@@ -231,6 +231,20 @@ instances:
     image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/pod-prod:4.0.8-1  # node-red 4.0.8 as the agent runs it, modbus + mssql-plus + postgresql + buffer-parser
     variables: {}
 
+  # The workbench for pod-prod: empty until a tab is promoted onto it, and
+  # created with the pair so the image exists when it is first needed.
+  - name: pod-test
+    host: pod-svr-lin01
+    compose_service: node-red-test
+    compose_file: /home/administrator/Base_Container/docker-compose.yml
+    app: pod-test
+    admin_root: "/node-red-test"
+    auth_credential_id: nodered-pod-test-auth
+    credential_secret_id: nodered-pod-test-credsecret
+    dns_search: [rah.polipol.intra, pod.polipol.intra]
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/pod-test:4.0.8-1  # node-red 4.0.8 and pod-prod's palette, so a promoted tab opens with its nodes
+    variables: {}
+
   # --- Not in the registry yet ----------------------------------------------
   # dpn-svr-iot still runs flowfuse/device-agent. It joins once migrated to a
   # plain container — decision 12. Its flow is inside the agent container at
