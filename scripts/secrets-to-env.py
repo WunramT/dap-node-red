@@ -3,6 +3,7 @@
 
     python3 scripts/secrets-to-env.py apps/dpn-prod/flows.json            # report
     python3 scripts/secrets-to-env.py apps/dpn-prod/flows.json --write    # rewrite
+    python3 scripts/secrets-to-env.py apps/*/flows.json                   # the whole estate
 
 Some nodes keep their password in `flows.json` rather than in the credential
 store — `node-red-contrib-postgresql` is the one this estate hit — so the value
@@ -17,7 +18,9 @@ with no such sibling cannot be switched and are reported instead of guessed at.
 
 Values are never printed, not even truncated. Fields holding the same secret are
 grouped under one variable, which is read off the values themselves rather than
-assumed from the connection.
+assumed from the connection — across every file given at once, so passing the
+whole estate answers the question that decides the work: how many secrets are
+actually in there, and which instances a single rotation covers.
 
 The variables belong in the host's compose file, next to that instance's other
 host-side configuration — NOT in `registry.yml`, whose `variables` map is
@@ -85,12 +88,18 @@ def looks_like_a_name(value: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z_][\w.]*", value))
 
 
-def plan(flows: list[dict]) -> tuple[list[dict], list[dict]]:
-    """What can be switched to env, and what has to be handled by hand."""
-    convertible, manual, taken = [], [], {}
+def plan(flows: list[dict], taken: dict[str, str] | None = None,
+         source: str = "") -> tuple[list[dict], list[dict]]:
+    """What can be switched to env, and what has to be handled by hand.
+
+    `taken` is shared across files by the caller, so one secret used by several
+    instances comes out as one variable rather than one per file.
+    """
+    convertible, manual = [], []
+    taken = {} if taken is None else taken
     for node, field in candidates(flows):
         entry = {"id": node["id"], "type": node.get("type"), "name": node.get("name") or node["id"],
-                 "field": field}
+                 "field": field, "source": source}
         if f"{field}FieldType" in node:
             entry["variable"] = variable_name(node, field, taken, node[field])
             convertible.append(entry)
@@ -113,16 +122,23 @@ def report(convertible: list[dict], manual: list[dict], written: bool) -> str:
     lines = []
     if convertible:
         verb = "switched to env" if written else "can be switched to env"
-        lines.append(f"{len(convertible)} field(s) {verb}:\n")
+        sources = sorted({e["source"] for e in convertible if e["source"]})
+        where = f" across {len(sources)} file(s)" if len(sources) > 1 else ""
+        lines.append(f"{len(convertible)} field(s){where} {verb}:\n")
         width = max(len(e["name"]) for e in convertible)
+        stem = max((len(e["source"]) for e in convertible), default=0)
         for e in convertible:
-            lines.append(f"    {e['type']:<18} {e['name']:<{width}}  {e['field']:<10} -> ${e['variable']}")
+            head = f"    {e['source']:<{stem}}  " if len(sources) > 1 else "    "
+            lines.append(f"{head}{e['type']:<18} {e['name']:<{width}}  "
+                         f"{e['field']:<10} -> ${e['variable']}")
         names = sorted({e["variable"] for e in convertible})
-        lines.append(f"\n{len(names)} variable(s). They belong in that instance's service in the")
-        lines.append("host's compose file, never in registry.yml, which is committed:\n")
-        lines.append("    environment:")
+        lines.append(f"\n{len(names)} distinct secret(s) behind {len(convertible)} field(s). They")
+        lines.append("belong in each instance's service in its host's compose file, never in")
+        lines.append("registry.yml, which is committed:\n")
         for name in names:
-            lines.append(f"      - {name}=")
+            users = sorted({e["source"] for e in convertible if e["variable"] == name and e["source"]})
+            shared = f"    # {', '.join(users)}" if len(users) > 1 else ""
+            lines.append(f"      - {name}={shared}")
     else:
         lines.append("No field to switch.")
     if manual:
@@ -140,18 +156,23 @@ def report(convertible: list[dict], manual: list[dict], written: bool) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("flow", type=Path)
-    ap.add_argument("--write", action="store_true", help="rewrite the flow in place")
+    ap.add_argument("flow", type=Path, nargs="+")
+    ap.add_argument("--write", action="store_true", help="rewrite the flows in place")
     args = ap.parse_args()
 
-    flows = json.loads(args.flow.read_text(encoding="utf-8"))
-    if not isinstance(flows, list):
-        sys.exit(f"{args.flow}: a flows.json is a JSON array of nodes")
-
-    convertible, manual = plan(flows)
-    if args.write and convertible:
-        args.flow.write_text(render(normalize(apply(flows, convertible))), encoding="utf-8")
-    print(report(convertible, manual, args.write))
+    taken: dict[str, str] = {}
+    every_convertible, every_manual = [], []
+    for path in args.flow:
+        flows = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(flows, list):
+            sys.exit(f"{path}: a flows.json is a JSON array of nodes")
+        # The app directory names the instance; the file name is the same for all.
+        convertible, manual = plan(flows, taken, source=path.parent.name)
+        if args.write and convertible:
+            path.write_text(render(normalize(apply(flows, convertible))), encoding="utf-8")
+        every_convertible += convertible
+        every_manual += manual
+    print(report(every_convertible, every_manual, args.write))
     return 0
 
 

@@ -50,6 +50,35 @@ Still open on `wfm-svr-lin01`:
 - [ ] Run both change loops once end to end (README, "Change a tab" and "New
       tab"), on `Flow 1` rather than the publishing tab.
 
+## Phase 1b — Plaintext database passwords, estate-wide
+
+Found 2026-09-14 while migrating `pod-prod`: `node-red-contrib-postgresql` keeps
+its password in `flows.json` rather than in the credential store, so every one of
+them is committed and permanent in history.
+
+```bash
+python3 scripts/secrets-to-env.py apps/*/flows.json
+```
+
+**25 fields across 8 apps — but only 8 distinct secrets**, because several
+instances share a database login. `dpn-prod` holds 11 of the fields; `gor-prod`
+and `srem-prod` 3 each; `gor-test`, `srem-test` and `wag-test` 2; `jan-test` and
+`pod-prod` 1.
+
+- [ ] Rotate all 8. The tool's output says which instances each one touches, so
+      one rotation is one round of service edits rather than a guess.
+- [ ] `secrets-to-env.py apps/*/flows.json --write`, then commit. The value
+      becomes a variable name and Git carries nothing else.
+- [ ] Put each variable in that instance's service in its host's compose file —
+      not in `registry.yml`, whose `variables` map is committed.
+- [ ] Deploy each changed flow. It is an ordinary flow deploy, no restart, but
+      the container needs its environment first, so the compose edit comes
+      before the deploy.
+
+Rotating without switching leaves the next commit carrying the new secret;
+switching without rotating leaves the old one live in history. Both halves or
+neither.
+
 ## Phase 2 — Roll out to the remaining `clean` instances
 
 `wfm-prod` and `wfm-test` are done. For every instance reported `clean` in phase 0, `wag-prod` first:
@@ -109,6 +138,7 @@ These do **not** block "showing it live" — they concern only the 2 FlowFuse in
 |---|---|---|---|
 | 0 | Drift check across all 16 instances | none (read-only) | **done** — 8 clean, 2 drifted, 1 blocked |
 | 1 | Set up `wfm-test`, first real deploy to it | none (new, empty instance) | write path + `409` case proven live |
+| 1b | Rotate 8 database passwords, move them to env | low (a flow deploy each) | no secret in the repository going forward |
 | 2 | Roll out to all `clean` instances, `wag-prod` first | low, the pattern repeats | all 12 apps run through the pipeline |
 | 3 | Static drift page | none | showable to the whole team, without a CLI |
 | 4 | Test the palette path once | medium (restart) | second transport proven |

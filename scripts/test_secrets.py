@@ -83,6 +83,21 @@ check("the report sends the variables to the compose file", "compose file" in te
 check("and says not to put them in the registry", "registry.yml" in text, text)
 check("and says the committed ones still need rotating", "Rotate" in text, text)
 
+# One secret used by two instances is one variable, not two — that is the
+# number that decides how much rotation there is to do.
+shared_taken = {}
+one, _ = s2e.plan(flow(), shared_taken, source="app-one")
+two, _ = s2e.plan([{"id": "z", "type": "postgreSQLConfig", "name": "elsewhere",
+                    "password": SHARED, "passwordFieldType": "str"}],
+                  shared_taken, source="app-two")
+check("the same secret in another file reuses the variable",
+      two[0]["variable"] == one[0]["variable"], f"{two[0]['variable']} vs {one[0]['variable']}")
+across = s2e.report(one + two, [], written=False)
+check("the report counts distinct secrets, not fields", "2 distinct secret(s) behind 4 field(s)" in across, across)
+check("and names both instances on the shared one", "app-one, app-two" in across, across)
+check("across files it says so", "across 2 file(s)" in across, across)
+check("still no secret in it", SHARED not in across and OTHER not in across, across)
+
 # End to end, including that a second run finds nothing left to do.
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / "flows.json"
