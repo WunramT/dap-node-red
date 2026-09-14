@@ -40,6 +40,32 @@ include:
 - component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/buildah/buildah-build@~latest
   inputs:
     stage: Build
+    job_name: build:buildah:dpn-prod
+    dockerfile: apps/dpn-prod/Dockerfile
+    image_name: dap-node-red/dpn-prod
+    image_tag: 4.0.9-1
+    enable_layers_cache: false
+- component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
+  inputs:
+    stage: Sign
+    job_name: sign:cosign:dpn-prod
+    image_name: dap-node-red/dpn-prod
+- component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/buildah/buildah-build@~latest
+  inputs:
+    stage: Build
+    job_name: build:buildah:dpn-test
+    dockerfile: apps/dpn-test/Dockerfile
+    image_name: dap-node-red/dpn-test
+    image_tag: 4.0.9-1
+    enable_layers_cache: false
+- component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/cosign/cosign-sign@~latest
+  inputs:
+    stage: Sign
+    job_name: sign:cosign:dpn-test
+    image_name: dap-node-red/dpn-test
+- component: $CI_SERVER_FQDN/infrastructure/ci-cd-catalog/buildah/buildah-build@~latest
+  inputs:
+    stage: Build
     job_name: build:buildah:gor-prod
     dockerfile: apps/gor-prod/Dockerfile
     image_name: dap-node-red/gor-prod
@@ -228,8 +254,42 @@ sign:cosign:cho-test:
     changes:
     - apps/cho-test/package.json
     - apps/cho-test/Dockerfile
-build:buildah:gor-prod:
+build:buildah:dpn-prod:
   resource_group: image-build-3
+  rules:
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    changes:
+    - apps/dpn-prod/package.json
+    - apps/dpn-prod/Dockerfile
+sign:cosign:dpn-prod:
+  variables:
+    IMAGE_TAG: 4.0.9-1
+  needs:
+  - job: build:buildah:dpn-prod
+  rules:
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    changes:
+    - apps/dpn-prod/package.json
+    - apps/dpn-prod/Dockerfile
+build:buildah:dpn-test:
+  resource_group: image-build-1
+  rules:
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    changes:
+    - apps/dpn-test/package.json
+    - apps/dpn-test/Dockerfile
+sign:cosign:dpn-test:
+  variables:
+    IMAGE_TAG: 4.0.9-1
+  needs:
+  - job: build:buildah:dpn-test
+  rules:
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    changes:
+    - apps/dpn-test/package.json
+    - apps/dpn-test/Dockerfile
+build:buildah:gor-prod:
+  resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -246,7 +306,7 @@ sign:cosign:gor-prod:
     - apps/gor-prod/package.json
     - apps/gor-prod/Dockerfile
 build:buildah:gor-test:
-  resource_group: image-build-1
+  resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -263,7 +323,7 @@ sign:cosign:gor-test:
     - apps/gor-test/package.json
     - apps/gor-test/Dockerfile
 build:buildah:jan-prod:
-  resource_group: image-build-2
+  resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -280,7 +340,7 @@ sign:cosign:jan-prod:
     - apps/jan-prod/package.json
     - apps/jan-prod/Dockerfile
 build:buildah:jan-test:
-  resource_group: image-build-3
+  resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -297,7 +357,7 @@ sign:cosign:jan-test:
     - apps/jan-test/package.json
     - apps/jan-test/Dockerfile
 build:buildah:pod-prod:
-  resource_group: image-build-1
+  resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -314,7 +374,7 @@ sign:cosign:pod-prod:
     - apps/pod-prod/package.json
     - apps/pod-prod/Dockerfile
 build:buildah:pod-test:
-  resource_group: image-build-2
+  resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -331,7 +391,7 @@ sign:cosign:pod-test:
     - apps/pod-test/package.json
     - apps/pod-test/Dockerfile
 build:buildah:srem-prod:
-  resource_group: image-build-3
+  resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -348,7 +408,7 @@ sign:cosign:srem-prod:
     - apps/srem-prod/package.json
     - apps/srem-prod/Dockerfile
 build:buildah:srem-test:
-  resource_group: image-build-1
+  resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -365,7 +425,7 @@ sign:cosign:srem-test:
     - apps/srem-test/package.json
     - apps/srem-test/Dockerfile
 build:buildah:wag-prod:
-  resource_group: image-build-2
+  resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -382,7 +442,7 @@ sign:cosign:wag-prod:
     - apps/wag-prod/package.json
     - apps/wag-prod/Dockerfile
 build:buildah:wag-test:
-  resource_group: image-build-3
+  resource_group: image-build-2
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -399,7 +459,7 @@ sign:cosign:wag-test:
     - apps/wag-test/package.json
     - apps/wag-test/Dockerfile
 build:buildah:wfm-prod:
-  resource_group: image-build-1
+  resource_group: image-build-3
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:
@@ -416,7 +476,7 @@ sign:cosign:wfm-prod:
     - apps/wfm-prod/package.json
     - apps/wfm-prod/Dockerfile
 build:buildah:wfm-test:
-  resource_group: image-build-2
+  resource_group: image-build-1
   rules:
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     changes:

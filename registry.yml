@@ -245,7 +245,34 @@ instances:
     image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/pod-test:4.0.8-1  # node-red 4.0.8 and pod-prod's palette, so a promoted tab opens with its nodes
     variables: {}
 
-  # --- Not in the registry yet ----------------------------------------------
-  # dpn-svr-iot still runs flowfuse/device-agent. It joins once migrated to a
-  # plain container — decision 12. Its flow is inside the agent container at
-  # /opt/flowfuse-device/project/flows.json; extraction is docker cp.
+  # dpn-prod is mid-migration off FlowFuse, like pod-prod. Eleven tabs and 852
+  # nodes, so it is taken over group by group — cutover-plan.py says which tabs
+  # can move alone. node-red 4.0.9 is what the agent resolved from `latest`.
+  #
+  # apps/dpn-prod/flows.json is deliberately absent until the export lands, and
+  # validate-registry.py fails on that. An empty placeholder would validate and
+  # then deploy as "delete all 852 nodes", so the missing file is the safer
+  # state: CI refuses the merge and says which file it wants.
+  - name: dpn-prod
+    host: dpn-svr-iot
+    compose_service: node-red-prod
+    compose_file: /home/iot/Base_Container/docker-compose.yml
+    app: dpn-prod
+    admin_root: "/node-red-prod"
+    auth_credential_id: nodered-dpn-prod-auth
+    credential_secret_id: nodered-dpn-prod-credsecret
+    dns_search: [rah.polipol.intra]
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/dpn-prod:4.0.9-1  # node-red 4.0.9 as the agent resolved it, dashboard + postgresql + mssql-plus + queue-gate + google-sheets + email, axios and ajv for the function nodes
+    variables: {}
+
+  - name: dpn-test
+    host: dpn-svr-iot
+    compose_service: node-red-test
+    compose_file: /home/iot/Base_Container/docker-compose.yml
+    app: dpn-test
+    admin_root: "/node-red-test"
+    auth_credential_id: nodered-dpn-test-auth
+    credential_secret_id: nodered-dpn-test-credsecret
+    dns_search: [rah.polipol.intra]
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/dpn-test:4.0.9-1  # node-red 4.0.9 and dpn-prod's palette, so a promoted tab opens with its nodes
+    variables: {}

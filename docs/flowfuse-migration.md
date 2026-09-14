@@ -74,6 +74,32 @@ modules we keep belong to. It is not copied, not committed, and not needed:
 `@flowfuse/node-red-dashboard` is a different scope and resolves from the public
 registry, which the first CI build confirms.
 
+## dpn-prod, half built
+
+`apps/dpn-prod/` carries its palette and Dockerfile; `registry.yml` carries
+`dpn-prod` and `dpn-test`. **`apps/dpn-prod/flows.json` is missing on purpose**
+and `validate-registry.py` fails until the export lands:
+
+```bash
+# on dpn-svr-iot, agent running
+C=$(docker ps -qf ancestor=flowfuse/device-agent:latest | head -1)
+docker cp $C:/opt/flowfuse-device/project/flows.json ~/dpn-export/flows.json
+# then, in the repository
+scp iot@dpn-svr-iot:~/dpn-export/flows.json apps/dpn-prod/flows.json
+python3 scripts/normalize.py --write apps/dpn-prod/flows.json
+python3 scripts/cutover-plan.py apps/dpn-prod/flows.json      # how many steps this becomes
+```
+
+An empty placeholder would have validated and then deployed as "delete all 852
+nodes". A missing file fails loudly and names itself, which is the cheaper
+mistake.
+
+The palette is the flow's, not the agent's: `modbus` and `google-translate` are
+installed there and used by no node, and both `@flowfuse/*` platform modules go
+with the platform. `axios` and `ajv` are not nodes at all — seven function nodes
+`require` them, so they are in the image, and whether Node-RED resolves them
+from there is what the workbench has to prove before the window.
+
 ## Cutover, tab by tab
 
 The instance does not have to move in one step. The new container comes up with
