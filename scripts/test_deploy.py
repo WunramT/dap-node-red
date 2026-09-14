@@ -96,8 +96,12 @@ print("deploy.py")
 
 # --- registry is readable, and the target resolves --------------------------
 known = instances()
-check("registry loads", len(known) == 14, str(len(known)))
-check("instance names are unique", len({i["name"] for i in known}) == 14)
+# Not a fixed count: the estate grows as instances are migrated in, and a suite
+# that pins the number fails on the day someone does that rather than on a bug.
+check("registry loads", len(known) > 0, str(len(known)))
+check("instance names are unique",
+      len({i["name"] for i in known}) == len(known),
+      str(sorted(i["name"] for i in known)))
 WAG = wag = next(i for i in known if i["name"] == "wag-prod")
 check("admin_root read correctly", wag["admin_root"] == "/node-red-prod", wag.get("admin_root"))
 # An instance whose runtime serves the API at / carries admin_root: "" — the

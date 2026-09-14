@@ -214,7 +214,24 @@ instances:
     image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/wfm-test:4.0.9-1  # node-red 4.0.9 to match prod, node-red-contrib-opcua
     variables: {}
 
+  # pod-prod is mid-migration off FlowFuse (docs/flowfuse-migration.md). The
+  # entry exists so CI builds its image and the pipeline can deploy it; the
+  # container itself comes up with every tab disabled and takes them over one
+  # group at a time. node-red 4.0.8 is what the device agent runs — the version
+  # move is a separate step, after the cutover.
+  - name: pod-prod
+    host: pod-svr-lin01
+    compose_service: node-red-prod
+    compose_file: /home/administrator/Base_Container/docker-compose.yml
+    app: pod-prod
+    admin_root: "/node-red-prod"
+    auth_credential_id: nodered-pod-prod-auth
+    credential_secret_id: nodered-pod-prod-credsecret
+    dns_search: [rah.polipol.intra, pod.polipol.intra]
+    image_tag: harbor.aks-infra.polipol-service.de/dap-node-red/pod-prod:4.0.8-1  # node-red 4.0.8 as the agent runs it, modbus + mssql-plus + postgresql + buffer-parser
+    variables: {}
+
   # --- Not in the registry yet ----------------------------------------------
-  # pod-svr-lin01 and dpn-svr-iot run flowfuse/device-agent. They join once
-  # migrated to plain containers — decision 12. Their flow is already on disk
-  # at /opt/flowfuse-device/project/flows.json.
+  # dpn-svr-iot still runs flowfuse/device-agent. It joins once migrated to a
+  # plain container — decision 12. Its flow is inside the agent container at
+  # /opt/flowfuse-device/project/flows.json; extraction is docker cp.

@@ -104,6 +104,35 @@ or a machine's TCP port usually takes one connection at a time.
 with the key in both files. Credentials belong to nodes, and a deploy from Git
 carries none.
 
+## pod-prod, as built
+
+`apps/pod-prod/` is in the repository and `registry.yml` carries the instance.
+The flow normalized to 154 nodes across two tabs, and `cutover-plan.py` reports
+them as **two independent groups** — no link crosses between "Zund Europol" (53
+nodes) and "Druckluft" (89), and they share no config node. So pod moves in two
+steps, each one tab.
+
+The image is `pod-prod:4.0.8-1`: the Node-RED version the agent runs, not the
+estate's 4.0.9. The migration changes the control plane; the version move is
+`bump-node-red.py` afterwards.
+
+Still to do before the first tab:
+
+- `nodered-pod-prod-auth` and `nodered-pod-prod-credsecret` in Jenkins. The
+  secret is the `credentialSecret` from `device.yml` — the key `flows_cred.json`
+  is encrypted with.
+- The `node-red-prod` service in `/home/administrator/Base_Container/docker-compose.yml`,
+  publishing 1880 once the agent is gone, `dns_search` `rah.polipol.intra` and
+  `pod.polipol.intra` so `zund-cut01`…`zund-cut10` resolve.
+- `settings.js` with `httpAdminRoot: '/node-red-prod'`, `adminAuth`, and the
+  key; `/data/.config.runtime.json` with the same key; `flows_cred.json` copied
+  in — all before the first tab is enabled.
+- **A Postgres password sits in this flow in clear text**, in a
+  `postgreSQLConfig` node, and it is in Git history now. Rotate it. Moving the
+  field to `env` is a flow change for the workbench, not for the cutover.
+
+A `pod-test` workbench is not part of the cutover and comes after it.
+
 ## Cutover, per instance
 
 1. `docker cp` `flows.json`, `flows_cred.json` and `package.json` out of the
