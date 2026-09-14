@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "Zund Europol",
     "info": "",
-    "disabled": false,
+    "disabled": true,
     "env": []
   },
   {
@@ -12,7 +12,7 @@
     "type": "tab",
     "label": "Druckluft",
     "info": "",
-    "disabled": false,
+    "disabled": true,
     "env": []
   },
   {

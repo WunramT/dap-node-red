@@ -131,7 +131,64 @@ Still to do before the first tab:
   `postgreSQLConfig` node, and it is in Git history now. Rotate it. Moving the
   field to `env` is a flow change for the workbench, not for the cutover.
 
+**Both tabs are committed `disabled`.** That is the state the instance starts
+in, and it is also the file that is copied into `/data` before the first start
+— so `flows_cred.json` lands next to a flow whose nodes exist. Node-RED drops
+credentials belonging to no node the first time it saves, and an empty `/data`
+means every node is missing. Taking a tab over is then one commit
+(`disabled: false`) and one flow deploy.
+
 A `pod-test` workbench is not part of the cutover and comes after it.
+
+## Standing the container up
+
+`deploy.py` resolves the instance with `docker inspect <compose_service>`, so
+the container must be **named** for that to work: `container_name: node-red-prod`,
+not compose's generated `base_container-node-red-prod-1`.
+
+```bash
+# 1. the directory, owned by the uid the services run as (runbook)
+sudo mkdir -p /home/administrator/Base_Container/node-red-prod/data
+sudo chown -R 1004:1004 /home/administrator/Base_Container/node-red-prod/data
+ls -ldn /home/administrator/Base_Container/node-red-prod/data   # 1004 1004
+
+# 2. back up the compose file before editing it — it holds every other service
+cd /home/administrator/Base_Container
+cp docker-compose.yml docker-compose.yml.$(date +%F)
+
+# 3. add the service, then check the file parses without starting anything
+docker compose -f docker-compose.yml config --services
+```
+
+The service, with no `ports:` while the agent still holds 1880:
+
+```yaml
+  node-red-prod:
+    container_name: node-red-prod
+    image: harbor.aks-infra.polipol-service.de/dap-node-red/pod-prod:4.0.8-1
+    restart: always
+    user: "1004:1004"
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - ./node-red-prod/data:/data
+    networks:
+      - app_network
+    dns:
+      - 192.168.48.28
+    dns_search:
+      - rah.polipol.intra
+      - pod.polipol.intra
+```
+
+Copy the shape from a host that already works rather than trusting this block —
+`ssh wfm-svr-lin01 "docker inspect node-red-prod"` shows what a running one has.
+`dns` and `dns_search` are the agent's, so `zund-cut01`…`zund-cut10` resolve the
+way they do today.
+
+A service in that file starts on any bare `docker compose up -d`. Until `/data`
+is populated that would create an empty flow file, so populate `/data` in the
+same sitting.
 
 ## Cutover, per instance
 
