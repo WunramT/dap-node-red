@@ -73,6 +73,18 @@ def variable_name(node: dict, field: str, taken: dict[str, str], value: str) -> 
     return name
 
 
+def looks_like_a_name(value: str) -> bool:
+    """Whether this reads as an identifier rather than as a secret.
+
+    The scan matches on the field's name, which over-reports: a field called
+    `token` may hold a msg property name — `node-red-node-email` defaults its
+    to `oauth2Response` and ignores it unless the auth type is XOAUTH2. Saying
+    that in the report costs a line and saves someone rotating a credential
+    that was never one. The value itself is not shown either way.
+    """
+    return bool(re.fullmatch(r"[A-Za-z_][\w.]*", value))
+
+
 def plan(flows: list[dict]) -> tuple[list[dict], list[dict]]:
     """What can be switched to env, and what has to be handled by hand."""
     convertible, manual, taken = [], [], {}
@@ -83,6 +95,7 @@ def plan(flows: list[dict]) -> tuple[list[dict], list[dict]]:
             entry["variable"] = variable_name(node, field, taken, node[field])
             convertible.append(entry)
         else:
+            entry["identifier"] = looks_like_a_name(node[field])
             manual.append(entry)
     return convertible, manual
 
@@ -116,7 +129,9 @@ def report(convertible: list[dict], manual: list[dict], written: bool) -> str:
         lines.append(f"\n{len(manual)} field(s) carry no <field>FieldType, so they have no env form")
         lines.append("and are left alone. Move them into the node's credentials in the editor:\n")
         for e in manual:
-            lines.append(f"    {e['type']:<18} {e['name']}  {e['field']}")
+            note = "  (reads as an identifier — may be a property name, not a secret)" \
+                if e.get("identifier") else ""
+            lines.append(f"    {e['type']:<18} {e['name']}  {e['field']}{note}")
     if convertible or manual:
         lines.append("\nWhatever was committed is in history and stays there. Rotate every")
         lines.append("secret above; switching the field is what keeps the next one out.")

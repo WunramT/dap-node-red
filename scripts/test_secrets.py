@@ -68,6 +68,15 @@ check("and the field type says env", by_id["a"]["passwordFieldType"] == "env")
 check("the untouched field keeps its value", by_id["d"]["token"] == "a-token-with-no-typed-input")
 check("and the untouched node keeps its type", by_id["e"]["passwordFieldType"] == "env")
 
+check("a value that reads as an identifier is marked as maybe-not-a-secret",
+      next(m["identifier"] for m in manual if m["field"] == "token") is False,
+      str(manual))
+ident = s2e.plan([{"id": "m", "type": "e-mail", "name": "mail",
+                   "token": "oauth2Response", "wires": []}])[1]
+check("and one that really is an identifier says so", ident[0]["identifier"] is True, str(ident))
+check("the note reaches the report",
+      "may be a property name" in s2e.report([], ident, written=False))
+
 text = s2e.report(convertible, manual, written=True)
 check("no secret appears in the report", SHARED not in text and OTHER not in text, text)
 check("the report sends the variables to the compose file", "compose file" in text, text)

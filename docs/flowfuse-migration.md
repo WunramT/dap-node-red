@@ -117,9 +117,12 @@ python3 scripts/secrets-to-env.py apps/dpn-prod/flows.json --write    # switch t
 Eleven of the twelve are `postgreSQLConfig` passwords, and they carry a
 `passwordFieldType`, so they switch. Grouped by value they come to **four**
 variables, not eleven — five of the pgbouncer configs and one unnamed node all
-hold the same secret. The twelfth is the mail node's `token`, which has no
-typed-input sibling and so has no env form: move that one into the node's
-credentials in the editor.
+hold the same secret. The twelfth is the mail node's `token`, and it is
+most likely not a secret at all: that node's `authtype` is `BASIC`, which does
+not use the field, and the value reads as an identifier — `node-red-node-email`
+defaults it to the msg property name `oauth2Response`. Its real SMTP login is in
+`flows_cred.json`, which is why it never appears in the flow. Confirm it in the
+editor; the scan matches on the field's name and says so.
 
 The four variables go into the `node-red-prod` service on `dpn-svr-iot`, beside
 its other host-side configuration. Not into `registry.yml` — its `variables` map
