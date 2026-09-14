@@ -109,6 +109,22 @@ the first tab moves: rotate, and switch those fields to `env` so the value comes
 from the container's environment and Git carries only the variable name. Same
 for `pod-prod`'s one field.
 
+```bash
+python3 scripts/secrets-to-env.py apps/dpn-prod/flows.json            # what is in there
+python3 scripts/secrets-to-env.py apps/dpn-prod/flows.json --write    # switch them
+```
+
+Eleven of the twelve are `postgreSQLConfig` passwords, and they carry a
+`passwordFieldType`, so they switch. Grouped by value they come to **four**
+variables, not eleven — five of the pgbouncer configs and one unnamed node all
+hold the same secret. The twelfth is the mail node's `token`, which has no
+typed-input sibling and so has no env form: move that one into the node's
+credentials in the editor.
+
+The four variables go into the `node-red-prod` service on `dpn-svr-iot`, beside
+its other host-side configuration. Not into `registry.yml` — its `variables` map
+is committed.
+
 The palette is the flow's, not the agent's: `modbus` and `google-translate` are
 installed there and used by no node, and both `@flowfuse/*` platform modules go
 with the platform. `axios` and `ajv` are not nodes at all — seven function nodes

@@ -82,7 +82,9 @@ container.
   alongside prod, and the only symptom is data arriving twice.
 - **Image tags are exact.** `latest` fails validation. A palette change raises
   the build suffix, and CI refuses a palette change without it.
-- **Secrets stay in Jenkins.** Never in a commit, a log, or a chat.
+- **Secrets stay in Jenkins.** Never in a commit, a log, or a chat. Some
+  nodes keep a password in the flow instead of the credential store —
+  `secrets-to-env.py` finds those.
 - **Name the compose service.** `docker compose up -d node-red-prod`. That file
   holds other people's services too.
 
@@ -99,6 +101,7 @@ container.
 | `nr.py deploy <inst>` | Dry run only. Real deploys go through Jenkins. |
 | `nr.py promote <a> <b> <tab>` | Move one tab and its dependencies. `--copy` or `--move`. |
 | `cutover-plan.py <flow>` | Which tabs can move to another runtime alone, and which are linked together. |
+| `secrets-to-env.py <flow>` | Finds plaintext passwords in a flow; `--write` moves them to environment variables. |
 | `normalize.py --write <flow>` | Canonicalize a flow so it diffs readably. Before every commit. |
 | `validate-registry.py` | Registry against the schema and the rules around it. |
 | `drift-check.py --all --json <out>` | Read-only fleet sweep. |
