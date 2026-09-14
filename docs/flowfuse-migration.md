@@ -74,25 +74,40 @@ modules we keep belong to. It is not copied, not committed, and not needed:
 `@flowfuse/node-red-dashboard` is a different scope and resolves from the public
 registry, which the first CI build confirms.
 
-## dpn-prod, half built
+## dpn-prod, as built
 
-`apps/dpn-prod/` carries its palette and Dockerfile; `registry.yml` carries
-`dpn-prod` and `dpn-test`. **`apps/dpn-prod/flows.json` is missing on purpose**
-and `validate-registry.py` fails until the export lands:
+The flow normalized to 852 nodes over eleven tabs, and every one of them is its
+own group — no link crosses a tab boundary anywhere in it. Eleven steps,
+smallest first:
 
-```bash
-# on dpn-svr-iot, agent running
-C=$(docker ps -qf ancestor=flowfuse/device-agent:latest | head -1)
-docker cp $C:/opt/flowfuse-device/project/flows.json ~/dpn-export/flows.json
-# then, in the repository
-scp iot@dpn-svr-iot:~/dpn-export/flows.json apps/dpn-prod/flows.json
-python3 scripts/normalize.py --write apps/dpn-prod/flows.json
-python3 scripts/cutover-plan.py apps/dpn-prod/flows.json      # how many steps this becomes
-```
+| | tab | nodes |
+|---|---|---|
+| 7 | Email | 3 |
+| 11 | PoliMowa | 5 |
+| 9 | EPC | 12 |
+| 6 | homag | 44 |
+| 1 | beil | 58 |
+| 4 | Bäumer | 59 |
+| 8 | Koch | 65 |
+| 3 | zund | 101 |
+| 5 | DBT | 102 |
+| 10 | MDE_Collection | 149 |
+| 2 | huh | 198 |
 
-An empty placeholder would have validated and then deployed as "delete all 852
-nodes". A missing file fails loudly and names itself, which is the cheaper
-mistake.
+Two config nodes are shared: the local MQTT broker across seven groups, and the
+`dpn-svr-postgres` connection across two. Both are fine held twice — a broker
+and a database take many connections — so they do not force anything to move
+together. Start with `Email` or `PoliMowa`: three and five nodes, so the first
+step proves the mechanism rather than the flow.
+
+**Twelve credentials sit in this flow in clear text** — eleven Postgres
+passwords and one mail token — and they are in Git history as of the export
+commit. Rotating them is not optional, and rotation forces the rest: once the
+old password is dead, the flow needs the new one, and writing it back in clear
+text repeats the problem. So the pair goes together, on the workbench, before
+the first tab moves: rotate, and switch those fields to `env` so the value comes
+from the container's environment and Git carries only the variable name. Same
+for `pod-prod`'s one field.
 
 The palette is the flow's, not the agent's: `modbus` and `google-translate` are
 installed there and used by no node, and both `@flowfuse/*` platform modules go
