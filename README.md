@@ -112,6 +112,12 @@ every suite. Without the container, run that script yourself. Either way, fill
 in the URLs in `nr.local.json` before `check`, `capture` or `deploy`. A blank
 password is prompted for and not stored.
 
+The dev container mounts the engine's socket so `nr.py edit` can start the
+editor. That is full control of that engine, with no narrower scope available —
+worth knowing, though it reaches only your own workstation: no host key and no
+Jenkins credential lives in the container. Every other command needs nothing but
+Python, so the mount can be dropped if you would rather run `edit` outside.
+
 `--baked` runs the app's own Harbor image. The login belongs to the client, the
 image to the engine both share — so pull it once on the workstation
 (`podman pull <image_tag>`, per app) and every later run finds it. From a dev

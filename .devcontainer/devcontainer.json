@@ -8,6 +8,19 @@
     // compose/editor.yml resolves against the host filesystem — with
     // docker-in-docker it would resolve inside the dev container and mount an
     // empty directory over the app.
+    //
+    // Know what this grants: the engine's socket is full control of that
+    // engine, and there is no "may only start node-red containers" scope to
+    // ask for. Anything running in here — a dependency, a script, an agent —
+    // can start a privileged container and read the engine's whole world. The
+    // boundary is the workstation's own (rootless) engine, not the estate: no
+    // SSH key to a site host lives here, and no Jenkins credential ever does
+    // (decision 7).
+    //
+    // Only `nr.py edit` needs it. status, check, capture, deploy, promote,
+    // normalize and validate are pure Python against the Admin API — delete
+    // this line and they all still work, and `edit` runs from the workstation
+    // instead.
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
     "ghcr.io/devcontainers/features/git:1": {}
   },
