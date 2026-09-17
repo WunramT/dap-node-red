@@ -1,18 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["local>devops/platform-tools/renovate/renovate-presets", "group:allNonMajor"],
   "labels": ["dependencies"],
-  "assignees": ["@J.Moehlenpage", "@T.Wunram"],
-  "reviewers": ["@J.Moehlenpage", "@T.Wunram"],
-  "prConcurrentLimit": 0,
-  "prHourlyLimit": 0,
+  "assignees": ["@J.Moehlenpage", "@TW"],
+  "assigneesSampleSize": 1,
   "semanticCommits": "enabled",
   "commitMessagePrefix": "chore(deps):",
-  "separateMajorMinor": true,
-  "separateMinorPatch": false,
-  "rangeStrategy": "bump",
-  "automerge": false,
-  "platformAutomerge": false,
   "ignoreTests": false,
   "ignorePaths": ["**/package-lock.json"],
   "packageRules": [
@@ -41,9 +34,6 @@
   "vulnerabilityAlerts": {
     "labels": ["security"],
     "commitMessageSuffix": "[security]"
-  },
-  "pip_requirements": {
-    "fileMatch": ["(^|/)requirements\\.txt$"]
   },
   "docker": {
     "enabled": true,
