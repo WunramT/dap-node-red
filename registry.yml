@@ -142,7 +142,7 @@ instances:
     variables: {}
 
   - name: srem-test
-    host: srem-svr-lin01
+    host: srem-svr-lin01.srem.polipol.intra
     compose_service: node-red-test
     compose_file: /home/administrator/Base_Container/docker-compose.yml
     app: srem-test

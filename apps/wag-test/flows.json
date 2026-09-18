@@ -1750,6 +1750,26 @@
     ]
   },
   {
+    "id": "1daad1b4bac82d35",
+    "type": "function",
+    "z": "14050e4f3f807d7b",
+    "name": "prepere LOG output",
+    "finalize": "",
+    "func": "msg.sql = {\n    schema: '\"purefloor\"',\n    table: \"trolley_log\",\n    columns: [\"ts\", \"identifier\", \"value\"],\n    values: [\n        msg.payload.ts,\n        msg.payload.identifier,\n        msg.payload.value\n    ]\n};\n\nreturn msg;",
+    "initialize": "",
+    "libs": [],
+    "noerr": 0,
+    "outputs": 1,
+    "timeout": 0,
+    "x": 940,
+    "y": 1900,
+    "wires": [
+      [
+        "75d94c2b58f72f48"
+      ]
+    ]
+  },
+  {
     "id": "1f64caecf246f489",
     "type": "function",
     "z": "14050e4f3f807d7b",
@@ -1767,6 +1787,27 @@
     "wires": [
       [
         "38c38e3c75ab88b7"
+      ]
+    ]
+  },
+  {
+    "id": "1fe97ba89abea2e2",
+    "type": "mqtt in",
+    "z": "14050e4f3f807d7b",
+    "name": "[NATS_TEST]_trolleys",
+    "broker": "4a03d5fa9a0e0313",
+    "datatype": "auto-detect",
+    "inputs": 0,
+    "nl": false,
+    "qos": "1",
+    "rap": true,
+    "rh": 0,
+    "topic": "polipol/6000/ksa/ksa-ksa/ksa-ksa1/PUReFloor/trolleys/#",
+    "x": 160,
+    "y": 1960,
+    "wires": [
+      [
+        "27585c9352e39f90"
       ]
     ]
   },
@@ -1815,6 +1856,41 @@
     "w": 1652,
     "x": 34,
     "y": 1199
+  },
+  {
+    "id": "27585c9352e39f90",
+    "type": "switch",
+    "z": "14050e4f3f807d7b",
+    "name": "",
+    "checkall": "true",
+    "outputs": 2,
+    "property": "topic",
+    "propertyType": "msg",
+    "repair": false,
+    "rules": [
+      {
+        "t": "regex",
+        "v": "/[0-9]+_[01]_(tool_name|recipe_name|actual_order)$",
+        "vt": "str",
+        "case": false
+      },
+      {
+        "t": "regex",
+        "v": "/[0-9]+_[01]_(active_order|big_tool|opened|poured|release_applied|temperature_ok)$",
+        "vt": "str",
+        "case": false
+      }
+    ],
+    "x": 470,
+    "y": 1960,
+    "wires": [
+      [
+        "67bf14c5a551caa8"
+      ],
+      [
+        "ebc60e0aa806b06e"
+      ]
+    ]
   },
   {
     "id": "2849f27e6a3dfc61",
@@ -2025,6 +2101,50 @@
     ]
   },
   {
+    "id": "36c9a0acc38de213",
+    "type": "change",
+    "z": "14050e4f3f807d7b",
+    "name": "change: TrolleyInState",
+    "action": "",
+    "from": "",
+    "property": "",
+    "reg": false,
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload.identifier",
+        "pt": "msg",
+        "to": "payload.name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "table",
+        "pt": "msg",
+        "to": "station_trolley_event",
+        "tot": "str"
+      },
+      {
+        "t": "delete",
+        "p": "payload.name",
+        "pt": "msg"
+      },
+      {
+        "t": "delete",
+        "p": "payload.device_id",
+        "pt": "msg"
+      }
+    ],
+    "to": "",
+    "x": 720,
+    "y": 2140,
+    "wires": [
+      [
+        "c0c006dea4c12e1d"
+      ]
+    ]
+  },
+  {
     "id": "38c38e3c75ab88b7",
     "type": "function",
     "z": "14050e4f3f807d7b",
@@ -2042,6 +2162,26 @@
     "wires": [
       [
         "861885df7ba2498b"
+      ]
+    ]
+  },
+  {
+    "id": "3a3358b9f0d05818",
+    "type": "function",
+    "z": "14050e4f3f807d7b",
+    "name": "prepere STATE output",
+    "finalize": "",
+    "func": "msg.sql = {\n    schema: '\"purefloor\"',\n    table: \"trolley_state\",\n    columns: [\"ts\", \"identifier\", \"value\"],\n    values: [\n        msg.payload.ts,\n        msg.payload.identifier,\n        msg.payload.value\n    ]\n};\n\nreturn msg;",
+    "initialize": "",
+    "libs": [],
+    "noerr": 0,
+    "outputs": 1,
+    "timeout": 0,
+    "x": 940,
+    "y": 2000,
+    "wires": [
+      [
+        "9e10ac78c0b6788c"
       ]
     ]
   },
@@ -2153,6 +2293,50 @@
     ]
   },
   {
+    "id": "4c12b3be5b8dc131",
+    "type": "switch",
+    "z": "14050e4f3f807d7b",
+    "name": "",
+    "checkall": "true",
+    "outputs": 3,
+    "property": "topic",
+    "propertyType": "msg",
+    "repair": false,
+    "rules": [
+      {
+        "t": "regex",
+        "v": "/[0-9]+_actual_trolley$",
+        "vt": "str",
+        "case": false
+      },
+      {
+        "t": "regex",
+        "v": "/[0-9]+_(waiting_for_task|finished|in_process|module_in_basic_pos)$",
+        "vt": "str",
+        "case": false
+      },
+      {
+        "t": "regex",
+        "v": "/[0-9]+_(error_category_[1-4]|warning)$",
+        "vt": "str",
+        "case": false
+      }
+    ],
+    "x": 470,
+    "y": 2180,
+    "wires": [
+      [
+        "36c9a0acc38de213"
+      ],
+      [
+        "923091708271255a"
+      ],
+      [
+        "deaa90a6aab8b297"
+      ]
+    ]
+  },
+  {
     "id": "4cca2cbf9ce5e81f",
     "type": "subflow:76b3786a13d77125",
     "z": "14050e4f3f807d7b",
@@ -2160,6 +2344,24 @@
     "name": "",
     "x": 1560,
     "y": 160,
+    "wires": []
+  },
+  {
+    "id": "5143462dd0274ded",
+    "type": "subflow:76b3786a13d77125",
+    "z": "14050e4f3f807d7b",
+    "name": "",
+    "x": 1640,
+    "y": 2000,
+    "wires": []
+  },
+  {
+    "id": "5146d35ab243ead4",
+    "type": "subflow:76b3786a13d77125",
+    "z": "14050e4f3f807d7b",
+    "name": "",
+    "x": 1640,
+    "y": 1900,
     "wires": []
   },
   {
@@ -2320,6 +2522,27 @@
     ]
   },
   {
+    "id": "634abeae769d44a5",
+    "type": "function",
+    "z": "14050e4f3f807d7b",
+    "name": "transform",
+    "finalize": "",
+    "func": "var schema = msg.sql.schema;\nvar table = msg.sql.table;\nvar columns = msg.sql.columns.join(', ');\nvar values = msg.sql.values;\n\nvar sqlValues = values.map(value => {\n    if (value === null || value === undefined) {\n        return 'NULL';\n    } else if (typeof value === 'string') {\n        var escaped = value\n            .replace(/\\\\/g, \"\\\\\\\\\")\n            .replace(/'/g, \"''\");\n\n        return `E'${escaped}'`;\n    } else if (typeof value === 'boolean') {\n        return value ? 'TRUE' : 'FALSE';\n    } else {\n        return value;\n    }\n}).join(', ');\n\nmsg.query =\n    `INSERT INTO ${schema}.${table} (${columns}) ` +\n    `VALUES (${sqlValues}) ON CONFLICT DO NOTHING;`;\n\nreturn msg;",
+    "initialize": "",
+    "libs": [],
+    "noerr": 0,
+    "outputs": 1,
+    "timeout": 0,
+    "x": 1240,
+    "y": 2180,
+    "wires": [
+      [
+        "ce268b2b5aabfd36",
+        "d33b979855a79839"
+      ]
+    ]
+  },
+  {
     "id": "6683c6bcdc9240bc",
     "type": "mqtt in",
     "z": "14050e4f3f807d7b",
@@ -2338,6 +2561,50 @@
     "wires": [
       [
         "093a6ea3742f8114"
+      ]
+    ]
+  },
+  {
+    "id": "67bf14c5a551caa8",
+    "type": "change",
+    "z": "14050e4f3f807d7b",
+    "name": "change: LOG",
+    "action": "",
+    "from": "",
+    "property": "",
+    "reg": false,
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload.identifier",
+        "pt": "msg",
+        "to": "payload.name",
+        "tot": "msg"
+      },
+      {
+        "t": "delete",
+        "p": "payload.name",
+        "pt": "msg"
+      },
+      {
+        "t": "delete",
+        "p": "payload.device_id",
+        "pt": "msg"
+      },
+      {
+        "t": "set",
+        "p": "payload.value",
+        "pt": "msg",
+        "to": "$string(payload.value)",
+        "tot": "jsonata"
+      }
+    ],
+    "to": "",
+    "x": 690,
+    "y": 1900,
+    "wires": [
+      [
+        "1daad1b4bac82d35"
       ]
     ]
   },
@@ -2542,6 +2809,26 @@
     "x": 1540,
     "y": 1560,
     "wires": []
+  },
+  {
+    "id": "75d94c2b58f72f48",
+    "type": "function",
+    "z": "14050e4f3f807d7b",
+    "name": "transform",
+    "finalize": "",
+    "func": "var schema = msg.sql.schema;\nvar table = msg.sql.table;\nvar columns = msg.sql.columns.join(', ');\nvar values = msg.sql.values;\n\nvar sqlValues = values.map(value => {\n    if (value === null || value === undefined) {\n        return 'NULL';\n    } else if (typeof value === 'string') {\n        var escaped = value\n            .replace(/\\\\/g, \"\\\\\\\\\")\n            .replace(/'/g, \"''\");\n\n        return `E'${escaped}'`;\n    } else if (typeof value === 'boolean') {\n        return value ? 'TRUE' : 'FALSE';\n    } else {\n        return value;\n    }\n}).join(', ');\n\nmsg.query =\n    `INSERT INTO ${schema}.${table} (${columns}) ` +\n    `VALUES (${sqlValues}) ON CONFLICT DO NOTHING;`;\n\nreturn msg;",
+    "initialize": "",
+    "libs": [],
+    "noerr": 0,
+    "outputs": 1,
+    "timeout": 0,
+    "x": 1240,
+    "y": 1900,
+    "wires": [
+      [
+        "5146d35ab243ead4"
+      ]
+    ]
   },
   {
     "id": "75e881698b4ec724",
@@ -2765,6 +3052,71 @@
     ]
   },
   {
+    "id": "923091708271255a",
+    "type": "change",
+    "z": "14050e4f3f807d7b",
+    "name": "change: StationState",
+    "action": "",
+    "from": "",
+    "property": "",
+    "reg": false,
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload.identifier",
+        "pt": "msg",
+        "to": "payload.name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "table",
+        "pt": "msg",
+        "to": "station_state",
+        "tot": "str"
+      },
+      {
+        "t": "delete",
+        "p": "payload.name",
+        "pt": "msg"
+      },
+      {
+        "t": "delete",
+        "p": "payload.device_id",
+        "pt": "msg"
+      }
+    ],
+    "to": "",
+    "x": 720,
+    "y": 2180,
+    "wires": [
+      [
+        "c0c006dea4c12e1d"
+      ]
+    ]
+  },
+  {
+    "id": "9a4efc6d9d66268f",
+    "type": "mqtt in",
+    "z": "14050e4f3f807d7b",
+    "name": "[NATS_TEST]_stations",
+    "broker": "4a03d5fa9a0e0313",
+    "datatype": "auto-detect",
+    "inputs": 0,
+    "nl": false,
+    "qos": "1",
+    "rap": true,
+    "rh": 0,
+    "topic": "polipol/6000/ksa/ksa-ksa/ksa-ksa1/PUReFloor/stations/#",
+    "x": 160,
+    "y": 2180,
+    "wires": [
+      [
+        "4c12b3be5b8dc131"
+      ]
+    ]
+  },
+  {
     "id": "9a7fc81291647480",
     "type": "function",
     "z": "14050e4f3f807d7b",
@@ -2855,6 +3207,26 @@
     "wires": [
       [
         "faf5598804179edc"
+      ]
+    ]
+  },
+  {
+    "id": "9e10ac78c0b6788c",
+    "type": "function",
+    "z": "14050e4f3f807d7b",
+    "name": "transform",
+    "finalize": "",
+    "func": "var schema = msg.sql.schema;\nvar table = msg.sql.table;\nvar columns = msg.sql.columns.join(', ');\nvar values = msg.sql.values;\n\nvar sqlValues = values.map(value => {\n    if (value === null || value === undefined) {\n        return 'NULL';\n    } else if (typeof value === 'string') {\n        var escaped = value\n            .replace(/\\\\/g, \"\\\\\\\\\")\n            .replace(/'/g, \"''\");\n\n        return `E'${escaped}'`;\n    } else if (typeof value === 'boolean') {\n        return value ? 'TRUE' : 'FALSE';\n    } else {\n        return value;\n    }\n}).join(', ');\n\nmsg.query =\n    `INSERT INTO ${schema}.${table} (${columns}) ` +\n    `VALUES (${sqlValues}) ON CONFLICT DO NOTHING;`;\n\nreturn msg;",
+    "initialize": "",
+    "libs": [],
+    "noerr": 0,
+    "outputs": 1,
+    "timeout": 0,
+    "x": 1240,
+    "y": 2000,
+    "wires": [
+      [
+        "5143462dd0274ded"
       ]
     ]
   },
@@ -3154,6 +3526,26 @@
     ]
   },
   {
+    "id": "c0c006dea4c12e1d",
+    "type": "function",
+    "z": "14050e4f3f807d7b",
+    "name": "prepere output",
+    "finalize": "",
+    "func": "msg.sql = {\n    schema: '\"purefloor\"',\n    table: msg.table,\n    columns: [\"ts\", \"identifier\", \"value\"],\n    values: [\n        msg.payload.ts,\n        msg.payload.identifier,\n        msg.payload.value\n    ]\n};\n\nreturn msg;",
+    "initialize": "",
+    "libs": [],
+    "noerr": 0,
+    "outputs": 1,
+    "timeout": 0,
+    "x": 1020,
+    "y": 2180,
+    "wires": [
+      [
+        "634abeae769d44a5"
+      ]
+    ]
+  },
+  {
     "id": "c12b12a6bddf334d",
     "type": "function",
     "z": "14050e4f3f807d7b",
@@ -3259,6 +3651,23 @@
     "wires": []
   },
   {
+    "id": "ce268b2b5aabfd36",
+    "type": "debug",
+    "z": "14050e4f3f807d7b",
+    "name": "debug 4",
+    "active": true,
+    "complete": "true",
+    "console": false,
+    "statusType": "auto",
+    "statusVal": "",
+    "targetType": "full",
+    "tosidebar": true,
+    "tostatus": false,
+    "x": 1440,
+    "y": 2260,
+    "wires": []
+  },
+  {
     "id": "ce2cd6dd67bd8bd6",
     "type": "inject",
     "z": "14050e4f3f807d7b",
@@ -3338,6 +3747,15 @@
     "w": 1658,
     "x": 34,
     "y": 1493
+  },
+  {
+    "id": "d33b979855a79839",
+    "type": "subflow:76b3786a13d77125",
+    "z": "14050e4f3f807d7b",
+    "name": "",
+    "x": 1640,
+    "y": 2180,
+    "wires": []
   },
   {
     "id": "d47dffbbe8540327",
@@ -3423,6 +3841,50 @@
     "wires": [
       [
         "8a998a459aa89000"
+      ]
+    ]
+  },
+  {
+    "id": "deaa90a6aab8b297",
+    "type": "change",
+    "z": "14050e4f3f807d7b",
+    "name": "change: StationAlarms",
+    "action": "",
+    "from": "",
+    "property": "",
+    "reg": false,
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload.identifier",
+        "pt": "msg",
+        "to": "payload.name",
+        "tot": "msg"
+      },
+      {
+        "t": "set",
+        "p": "table",
+        "pt": "msg",
+        "to": "station_alarm_event",
+        "tot": "str"
+      },
+      {
+        "t": "delete",
+        "p": "payload.name",
+        "pt": "msg"
+      },
+      {
+        "t": "delete",
+        "p": "payload.device_id",
+        "pt": "msg"
+      }
+    ],
+    "to": "",
+    "x": 720,
+    "y": 2220,
+    "wires": [
+      [
+        "c0c006dea4c12e1d"
       ]
     ]
   },
@@ -3526,6 +3988,43 @@
     "y": 1760,
     "wires": [
       []
+    ]
+  },
+  {
+    "id": "ebc60e0aa806b06e",
+    "type": "change",
+    "z": "14050e4f3f807d7b",
+    "name": "change: STATE",
+    "action": "",
+    "from": "",
+    "property": "",
+    "reg": false,
+    "rules": [
+      {
+        "t": "set",
+        "p": "payload.identifier",
+        "pt": "msg",
+        "to": "payload.name",
+        "tot": "msg"
+      },
+      {
+        "t": "delete",
+        "p": "payload.name",
+        "pt": "msg"
+      },
+      {
+        "t": "delete",
+        "p": "payload.device_id",
+        "pt": "msg"
+      }
+    ],
+    "to": "",
+    "x": 700,
+    "y": 2000,
+    "wires": [
+      [
+        "3a3358b9f0d05818"
+      ]
     ]
   },
   {
@@ -3759,7 +4258,7 @@
     "g": "07c0042f97d4fca1",
     "name": "Transform",
     "finalize": "",
-    "func": "var schema = msg.sql.schema;\nvar table = msg.sql.table;\nvar columns = msg.sql.columns.join(', ');\nvar values = msg.sql.values;\nvar sqlValues = values.map(value => {\n    if (value === null || value === undefined || value === '') {\n        return 'NULL';\n    } else if (typeof value === 'string') {\n        return `'${value}'`;\n    } else if (typeof value === 'boolean') {\n        return value ? 'TRUE' : 'FALSE';\n    } else {\n        return value;\n    }\n}).join(', ');\nvar query = `INSERT INTO ${schema}.${table} (${columns}) VALUES (${sqlValues}) ON CONFLICT DO NOTHING;`;\n\nmsg.query = query;\nreturn msg;",
+    "func": "var schema = msg.sql.schema;\nvar table = msg.sql.table;\nvar columns = msg.sql.columns.join(', ');\nvar values = msg.sql.values;\n\nvar sqlValues = values.map(value => {\n    if (value === null || value === undefined) {\n        return 'NULL';\n    } else if (typeof value === 'string') {\n        var escaped = value\n            .replace(/\\\\/g, \"\\\\\\\\\")\n            .replace(/'/g, \"''\");\n\n        return `E'${escaped}'`;\n    } else if (typeof value === 'boolean') {\n        return value ? 'TRUE' : 'FALSE';\n    } else {\n        return value;\n    }\n}).join(', ');\n\nmsg.query =\n    `INSERT INTO ${schema}.${table} (${columns}) ` +\n    `VALUES (${sqlValues}) ON CONFLICT DO NOTHING;`;\n\nreturn msg;",
     "initialize": "",
     "libs": [],
     "noerr": 0,
@@ -4151,8 +4650,8 @@
     "idleFieldType": "num",
     "max": 10,
     "maxFieldType": "num",
-    "password": "DPN_SVR_POSTGRES_PASSWORD",
-    "passwordFieldType": "env",
+    "password": "pwevalhyxb",
+    "passwordFieldType": "str",
     "port": "6432",
     "portFieldType": "num",
     "ssl": "false",
@@ -4528,6 +5027,37 @@
     ]
   },
   {
+    "id": "4a03d5fa9a0e0313",
+    "type": "mqtt-broker",
+    "name": "nats_test",
+    "autoConnect": true,
+    "autoUnsubscribe": true,
+    "birthMsg": {},
+    "birthPayload": "",
+    "birthQos": "0",
+    "birthRetain": "false",
+    "birthTopic": "",
+    "broker": "10.60.1.198",
+    "cleansession": true,
+    "clientid": "",
+    "closeMsg": {},
+    "closePayload": "",
+    "closeQos": "0",
+    "closeRetain": "false",
+    "closeTopic": "",
+    "keepalive": 60,
+    "port": "1984",
+    "protocolVersion": 4,
+    "sessionExpiry": "",
+    "userProps": "",
+    "usetls": false,
+    "willMsg": {},
+    "willPayload": "",
+    "willQos": "0",
+    "willRetain": "false",
+    "willTopic": ""
+  },
+  {
     "id": "4e714f14d7af13f4",
     "type": "mqtt-broker",
     "name": "dpn-svr-iot",
@@ -4560,6 +5090,37 @@
     "willTopic": ""
   },
   {
+    "id": "8f93b8be4e44b3ce",
+    "type": "mqtt-broker",
+    "name": "nats_test_copy",
+    "autoConnect": true,
+    "autoUnsubscribe": true,
+    "birthMsg": {},
+    "birthPayload": "",
+    "birthQos": "0",
+    "birthRetain": "false",
+    "birthTopic": "",
+    "broker": "10.60.1.198",
+    "cleansession": true,
+    "clientid": "",
+    "closeMsg": {},
+    "closePayload": "",
+    "closeQos": "0",
+    "closeRetain": "false",
+    "closeTopic": "",
+    "keepalive": 60,
+    "port": "1984",
+    "protocolVersion": 4,
+    "sessionExpiry": "",
+    "userProps": "",
+    "usetls": false,
+    "willMsg": {},
+    "willPayload": "",
+    "willQos": "0",
+    "willRetain": "false",
+    "willTopic": ""
+  },
+  {
     "id": "de890302f6c0c06d",
     "type": "postgreSQLConfig",
     "name": "WAG-SVR-LIN01-1",
@@ -4575,8 +5136,8 @@
     "idleFieldType": "num",
     "max": 10,
     "maxFieldType": "num",
-    "password": "WAG_SVR_LIN01_1_PASSWORD",
-    "passwordFieldType": "env",
+    "password": "kQPZnlWTEBXvTtOxMhKA8doIx0TLhScB",
+    "passwordFieldType": "str",
     "port": 5432,
     "portFieldType": "num",
     "ssl": "false",
