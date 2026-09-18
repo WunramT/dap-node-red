@@ -238,6 +238,8 @@ docker exec <compose_service> grep -nE 'httpAdminRoot|adminAuth' /data/settings.
 
 The pipeline runs `deploy.py` on the target host, where every instance is at `http://<container-ip>:1880` and the script finds it through Docker. From a workstation there is no single answer, which is why decision 10 exists — but during bring-up it is useful, so set `NODE_RED_BASE_URL` to the **host only**. The script appends `admin_root` from `registry.yml`; passing the URL you have open in the browser doubles it.
 
+**From a workstation, go through `nr.py`.** It reads `nr.local.json` and sets those variables per instance before calling the same scripts — `nr.py status` for the fleet, `nr.py check <inst>` for one. Calling `drift-check.py` or `capture.py` directly there falls through to `docker inspect` on the local engine, which has none of these containers: the run reports `no such object` (or, on Windows, `FileNotFoundError` because `docker` is not on the PATH of that process) for every instance, and both mean "no base URL was supplied", not "the instance is down". `nr.py status` does not prompt for passwords — it cannot ask sixteen times — so a full sweep needs them stored in `nr.local.json`; without one, `adminAuth` answers `401` and that instance reads as unreachable.
+
 | Instance | From a workstation |
 |---|---|
 | all 14 | `http://<host>/node-red-prod` and `http://<host>/node-red-test` |

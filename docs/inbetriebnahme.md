@@ -112,16 +112,59 @@ Neu gegenüber der bisherigen Liste: `pod-svr-lin01_pw` und `dpn-svr-iot_pw`
 sowie die acht Credentials für `pod-*` und `dpn-*`. Die werden erst in Welle 5
 und 6 gebraucht.
 
-### 0.5 Arbeitsplatz
+### 0.5 Arbeitsplatz: der Sweep läuft über `nr.py`, nicht über `drift-check.py`
+
+**`drift-check.py` direkt aufzurufen funktioniert nur auf dem Zielhost.** Es
+löst die Adresse in dieser Reihenfolge auf: `NODE_RED_BASE_URL_<INSTANZ>`, dann
+`NODE_RED_BASE_URL`, dann `docker inspect <compose_service>` auf der *lokalen*
+Engine. Auf dem Host ist der Container lokal, dort greift der dritte Weg. Vom
+Arbeitsplatz oder aus dem Dev-Container greift keiner der drei, und die Meldung
+beschreibt den dritten Versuch statt der Ursache:
+
+```
+unreachable  docker inspect node-red-prod: error: no such object: node-red-prod
+unreachable  FileNotFoundError: [WinError 2] Das System kann die angegebene Datei nicht finden
+```
+
+Beides heißt dasselbe: **es wurde keine Basis-URL übergeben.** Der Container
+läuft, er läuft nur auf einer anderen Maschine. Unter Windows kommt dazu, dass
+`docker` gar nicht im PATH des Python-Prozesses liegt — eine Engine in WSL zählt
+dafür nicht.
+
+Der Weg vom Arbeitsplatz ist `nr.py`. Es liest `nr.local.json` und setzt die
+URLs pro Instanz, bevor es dieselben Skripte aufruft:
 
 ```bash
-cp nr.local.example.json nr.local.json      # URLs prüfen, Passwörter leer lassen
+cp nr.local.example.json nr.local.json     # URLs prüfen
+python3 scripts/nr.py status               # alle Instanzen, eine Tabelle
+python3 scripts/nr.py check <inst>         # eine Instanz, mit Diff
+```
+
+Zwei Dinge, die dabei stolpern lassen:
+
+- **`nr.py status` fragt keine Passwörter ab.** Für 16 Instanzen kann es nicht
+  16-mal nachfragen, also nimmt es nur, was in `nr.local.json` steht. Wo das
+  Passwort fehlt, geht die Abfrage ohne Token raus, `adminAuth` antwortet `401`,
+  und die Instanz erscheint als `unreachable`. Für einen vollständigen
+  Fleet-Sweep müssen die Passwörter also in `nr.local.json` stehen — die Datei
+  ist gitignored. `nr.py check <inst>` fragt dagegen nach.
+- **Melden *alle* Instanzen `unreachable`, obwohl die URLs stimmen**, ist es der
+  Firmenproxy: `urllib` beachtet `http_proxy`/`https_proxy`. `NO_PROXY` setzen,
+  siehe `runbook.md`, "Reaching an instance from a workstation".
+
+Wer die Skripte doch direkt aufrufen will — etwa für den JSON-Report — setzt die
+Basis-URLs selbst, **nur Host, ohne `admin_root`** (das kommt aus
+`registry.yml`):
+
+```bash
+export NODE_RED_BASE_URL_WFM_PROD=http://wfm-svr-lin01
+export NODE_RED_BASE_URL_WAG_PROD=http://wag-svr-lin01
+# ... je Instanz, die Liste steht in runbook.md
 python3 scripts/drift-check.py --all --json inventory/drift.json
 ```
 
-Melden *alle* Instanzen `unreachable`, ist es der Firmenproxy und nicht die
-Estate — `NO_PROXY` setzen, siehe `runbook.md`, "Reaching an instance from a
-workstation".
+Auf dem Zielhost selbst braucht es nichts davon — dort ist der dritte Weg der
+richtige, und genau so ruft Jenkins die Skripte auf.
 
 ---
 

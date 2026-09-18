@@ -94,19 +94,56 @@ def find(instance: str) -> dict:
 # Target resolution
 # --------------------------------------------------------------------------
 
-def container_url(service: str) -> str:
-    """Where the instance answers, asked of Docker rather than assumed."""
-    out = subprocess.run(
-        ["docker", "inspect", "-f",
-         "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", service],
-        capture_output=True, text=True,
-    )
+def container_url(service: str, instance: str | None = None) -> str:
+    """Where the instance answers, asked of Docker rather than assumed.
+
+    This is the path on the target host, where the container is local and
+    Docker knows its address. On a workstation it cannot work — the container
+    is on another machine — and the raw Docker error says nothing about that,
+    so both failures are answered with the command that does work there.
+    """
+    try:
+        out = subprocess.run(
+            ["docker", "inspect", "-f",
+             "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", service],
+            capture_output=True, text=True,
+        )
+    except OSError as exc:   # no docker on PATH: a workstation, or a shell without it
+        raise _no_local_container(service, instance, f"docker: {exc.strerror or exc}")
     if out.returncode != 0:
-        raise SystemExit(f"docker inspect {service}: {out.stderr.strip()}")
+        raise _no_local_container(service, instance, out.stderr.strip())
     ip = out.stdout.split()
     if not ip:
         raise SystemExit(f"{service} has no container address — is it running?")
     return f"http://{ip[0]}:1880"
+
+
+def _no_local_container(service: str, instance: str | None, detail: str) -> SystemExit:
+    """Docker here does not have this container — which is normal off the host.
+
+    Falling through to `docker inspect` means no base URL was supplied, and
+    that is the thing to report. The Docker error underneath is a symptom of
+    running the wrong command from the wrong machine, and reported alone it
+    sends the reader to look for a stopped container that is in fact running.
+    """
+    # The first line has to stand alone: drift-check's table prints that line
+    # and nothing else, and a reader who only sees "no such object" goes looking
+    # for a stopped container that is in fact running on another machine.
+    name = instance or service
+    return SystemExit(
+        f"no base URL — run it through nr.py (`nr.py check {name}`), "
+        f"or set {base_url_env(name)}\n"
+        f"  Docker here has no {service!r} container: {detail}\n"
+        "  That resolution is the target host's, where the container is local.\n"
+        "  From a workstation or a dev container nothing supplies the address,\n"
+        "  so nr.py does it — it reads the URLs from nr.local.json:\n"
+        f"    python3 scripts/nr.py check {name}\n"
+        "    python3 scripts/nr.py status          # every instance\n"
+        "  Calling drift-check.py or deploy.py directly needs that URL in the\n"
+        f"  environment instead: {base_url_env(name)}=http://<host> — the host\n"
+        "  only, registry.yml supplies admin_root. runbook.md, 'Reaching an\n"
+        "  instance from a workstation'."
+    )
 
 
 def env_credentials(credential_id: str) -> tuple[str, str] | None:
@@ -131,7 +168,7 @@ def base_url(inst: dict) -> str:
     admin_root = inst.get("admin_root") or ""
     base = (os.environ.get(base_url_env(inst["name"]))
             or os.environ.get("NODE_RED_BASE_URL")
-            or container_url(inst["compose_service"])).rstrip("/")
+            or container_url(inst["compose_service"], inst["name"])).rstrip("/")
     if admin_root and base.endswith(admin_root):
         stripped = base[: -len(admin_root)]
         print(f"note: the base URL already ends in {admin_root!r}, which "
