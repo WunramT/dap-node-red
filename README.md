@@ -133,6 +133,7 @@ container `nr.py` stops with that exact command instead of failing in compose.
 | `registry.yml` | What runs where. Every tool reads it; nothing hard-codes an instance. |
 | `apps/<app>/` | `flows.json` as deployed, `package.json` as the palette, its `Dockerfile`. |
 | `scripts/nodered.py` | The shared library: instance list, addresses, Admin API, image tags. |
+| `docs/inbetriebnahme.md` | Alle Server auf den Repo-Stand bringen — die Reihenfolge zum Livegang, inklusive FlowFuse. |
 | `docs/runbook.md` | Operating it: backup gate, deploys, `409` recovery, moving an instance. |
 | `docs/architecture.md` | The system and the measured facts about the estate. |
 | `docs/decisions.md` | Why it is built this way. Read before proposing otherwise. |

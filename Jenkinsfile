@@ -49,6 +49,11 @@ pipeline {
             'srem-prod', 'srem-test',
             'wag-prod', 'wag-test',
             'wfm-prod', 'wfm-test',
+            // Mid-migration off FlowFuse (decision 12). They carry an app and a
+            // registry entry, so ALL already reaches them — without them here a
+            // single-instance run, and therefore EXPECT_REV, could not.
+            'pod-prod', 'pod-test',
+            'dpn-prod', 'dpn-test',
         ])
         booleanParam(name: 'DRY_RUN', defaultValue: true,
             description: 'Print the diff and change nothing. Leave on until the diff is what you expect.')

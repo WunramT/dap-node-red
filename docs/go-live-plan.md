@@ -1,6 +1,9 @@
 # Go-live plan
 
 From here to the point where the team sees the pipeline live and uses it. As of 2026-09-08.
+The step-by-step version of this, per server and in German, is
+[`inbetriebnahme.md`](inbetriebnahme.md) — this file holds the phases and the reasoning,
+that one the order and the commands.
 
 Where we stand, in one sentence: every building block (registry, normalizer, `apps/`, `deploy.py`, `drift-check.py`, Jenkinsfile) is built and dry-run-verified for **one** instance (`wag-prod`) — but no real `POST /flows` has ever happened, and only for `wag-prod` are the Jenkins credentials demonstrably in place. Background and reasoning: [`architecture.md`](architecture.md), [`decisions.md`](decisions.md), [`open-questions.md`](open-questions.md), [`runbook.md`](runbook.md).
 

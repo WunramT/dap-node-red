@@ -10,6 +10,7 @@ anything non-obvious:
 - [`docs/open-questions.md`](docs/open-questions.md) names what is unknown and the command that answers it.
 - [`docs/registry.md`](docs/registry.md) is the `registry.yml` field reference.
 - [`docs/flowfuse-migration.md`](docs/flowfuse-migration.md) is the working document for the two device-agent instances, until they are cut over.
+- [`docs/inbetriebnahme.md`](docs/inbetriebnahme.md) is the go-live order for the whole estate, in German, FlowFuse included.
 - [`docs/runbook.md`](docs/runbook.md) is how it is operated.
 
 ## Constraints
