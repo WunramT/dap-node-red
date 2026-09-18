@@ -1,20 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": [
+    "local>devops/platform-tools/renovate/renovate-presets", "group:allNonMajor"
+  ],
   "labels": ["dependencies"],
-  "assignees": ["@J.Moehlenpage", "@T.Wunram"],
-  "reviewers": ["@J.Moehlenpage", "@T.Wunram"],
-  "prConcurrentLimit": 0,
-  "prHourlyLimit": 0,
-  "semanticCommits": "enabled",
+  "assignees": ["@J.Moehlenpage", "@TW"],
+  "assigneesSampleSize": 1,
   "commitMessagePrefix": "chore(deps):",
-  "separateMajorMinor": true,
-  "separateMinorPatch": false,
-  "rangeStrategy": "bump",
-  "automerge": false,
-  "platformAutomerge": false,
-  "ignoreTests": false,
-  "ignorePaths": ["**/package-lock.json"],
   "packageRules": [
     {
       "description": "Palette modules per app — one PR per app, reviewed against that app's flows",
@@ -41,16 +33,5 @@
   "vulnerabilityAlerts": {
     "labels": ["security"],
     "commitMessageSuffix": "[security]"
-  },
-  "pip_requirements": {
-    "fileMatch": ["(^|/)requirements\\.txt$"]
-  },
-  "docker": {
-    "enabled": true,
-    "fileMatch": [
-      "(^|/)Dockerfile$",
-      "(^|/)Dockerfile\\.[^/]*$",
-      "(^|/)docker-compose[^/]*\\.ya?ml$"
-    ]
   }
 }
